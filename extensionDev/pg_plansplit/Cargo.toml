@@ -21,6 +21,7 @@ pg17 = ["pgrx/pg17", "pgrx-tests/pg17" ]
 pg_test = []
 
 [dependencies]
+duckdb = { version = "1.2.1", features = ["bundled"] }
 pgrx = "=0.13.1"
 
 [dev-dependencies]

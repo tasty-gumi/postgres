@@ -1,3 +1,5 @@
+use duckdb::{params, Connection, Result};
+use pgrx::pg_sys;
 use pgrx::prelude::*;
 
 ::pgrx::pg_module_magic!();
@@ -16,7 +18,6 @@ mod tests {
     fn test_hello_pg_plansplit() {
         assert_eq!("Hello, pg_plansplit", crate::hello_pg_plansplit());
     }
-
 }
 
 /// This module is required by `cargo pgrx test` invocations.

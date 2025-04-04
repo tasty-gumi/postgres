@@ -45,3 +45,6 @@ lib*.pc
 /portlock/
 /.cache/
 /exp16_install/
+/duckdbDatasets/*.csv
+/duckdbDatasets/*.parquet
+/duckdbDatasets/*.db
