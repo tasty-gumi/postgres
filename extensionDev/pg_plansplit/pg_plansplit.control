@@ -1,0 +1,6 @@
+comment = 'pg_plansplit:  Created by pgrx'
+default_version = '@CARGO_VERSION@'
+module_pathname = '$libdir/pg_plansplit'
+relocatable = false
+superuser = true
+trusted = false

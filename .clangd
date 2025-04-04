@@ -1,0 +1,15 @@
+# .clangd (放置在PostgreSQL源码根目录)
+If:
+  # 仅对C和头文件生效
+  PathMatch: .*\.(c|h)$
+
+CompileCommands: build  # 指向编译数据库所在目录
+
+CompileFlags:
+  Add:
+    # PostgreSQL核心编译选项（根据你的build配置调整）
+    - -D_GNU_SOURCE
+    - -I${projectRoot}/src/include
+    - -I${projectRoot}/build/src/include  # 生成的pg_config.h位置
+    - -isystem${projectRoot}/src/port
+
