@@ -26,6 +26,7 @@ pgrx-tests = "=0.13.1"
 
 [profile.dev]
 panic = "unwind"
+debug = true
 
 [profile.release]
 panic = "unwind"

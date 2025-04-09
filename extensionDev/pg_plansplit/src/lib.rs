@@ -1,12 +1,10 @@
-use once_cell::sync::Lazy;
-use pgrx::list::{List, ListCell};
-use pgrx::log;
 use pgrx::pg_sys::IsUnderPostmaster;
 use pgrx::prelude::*;
 
-pub mod egmanager;
+pub mod engine;
 mod error;
 mod hooks;
+mod macros;
 
 ::pgrx::pg_module_magic!();
 
@@ -25,7 +23,7 @@ unsafe extern "C" fn _PG_init() {
     }
     unsafe {
         hooks::init();
-        egmanager::init();
+        engine::init();
     }
 }
 

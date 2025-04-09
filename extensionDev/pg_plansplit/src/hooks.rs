@@ -1,26 +1,24 @@
-use once_cell::sync::Lazy;
-use pgrx::list::{List, ListCell};
 use pgrx::log;
 use pgrx::pg_sys::{
-    planner_hook, planner_hook_type, standard_planner, CommonTableExpr, IsUnderPostmaster,
-    ParamListInfo, ParamListInfoData, PlannedStmt, Query,
+    object_access_hook_type, planner_hook, planner_hook_type, standard_planner, CommonTableExpr,
+    ExecutorStart_hook_type, ParamListInfoData, PlannedStmt, ProcessUtility_hook_type, Query,
 };
 use pgrx::prelude::*;
 use std::ffi::CStr;
 use std::os::raw::c_char;
 use std::slice::from_raw_parts;
 
-use crate::egmanager::duck;
+use crate::engine::duck;
 
-static mut PREV_PLANNER_HOOK: pgrx::pg_sys::planner_hook_type = None;
-static mut PREV_EXECUTOR_START: pgrx::pg_sys::ExecutorStart_hook_type = None;
-static mut PREV_PROCESS_UTILITY: pgrx::pg_sys::ProcessUtility_hook_type = None;
-static mut NEXT_OBJECT_ACCESS_HOOK: pgrx::pg_sys::object_access_hook_type = None;
+static mut PREV_PLANNER_HOOK: planner_hook_type = None;
+static mut PREV_EXECUTOR_START: ExecutorStart_hook_type = None;
+static mut PREV_PROCESS_UTILITY: ProcessUtility_hook_type = None;
+static mut NEXT_OBJECT_ACCESS_HOOK: object_access_hook_type = None;
 
 pub unsafe fn init() {
     unsafe {
-        PREV_PLANNER_HOOK = pgrx::pg_sys::planner_hook;
-        pgrx::pg_sys::planner_hook = Some(plansplit_planner)
+        PREV_PLANNER_HOOK = planner_hook;
+        planner_hook = Some(plansplit_planner)
     }
 }
 
@@ -59,12 +57,21 @@ unsafe extern "C" fn plansplit_planner(
             cte_queries.push(get_querydef((*cte).ctequery as *mut Query, false));
         }
         log!("{:?}", cte_queries);
+        // duck::DuckDBEngine::instance().unwrap()
         for cte_query in cte_queries {
-            let result = duck::DuckDBManager::instance()
-                .unwrap()
-                .duckdb_prepare_and_query(&cte_query)
-                .unwrap();
-            log!("{:?}", result);
+            // let result = duck::DuckDBManager::instance()
+            //     .expect("Failed to get duckdb instance")
+            //     .duckdb_prepare_and_query(&cte_query)
+            //     .expect("Failed to execute query");
+            //                 .expect("Failed to create database connection");
+            // let result: Vec<arrow::record_batch::RecordBatch> = conn
+            //     .prepare(&cte_query)
+            //     .expect("准备查询语句失败")
+            //     .query_arrow([])
+            //     .expect("执行查询失败")
+            //     .collect();
+            // log!("{:?}", result);
+            // conn.close().expect("关闭连接失败");
         }
     }
     standard_planner(parse, query_string, cursor_options, bound_params)
