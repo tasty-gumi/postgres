@@ -14,7 +14,7 @@ fn hello_pg_plansplit() -> &'static str {
 }
 
 #[pg_guard]
-unsafe extern "C" fn _PG_init() {
+unsafe extern "C-unwind" fn _PG_init() {
     use crate::error::*;
 
     // 当前的进程必须不是子进程，确保初始化的时候是主进程，确保该插件写在了shared_preload_libraries中

@@ -8,6 +8,7 @@ pub fn bad_init() -> ! {
 pub enum ErrorCode {
     DuckDBFailedConfig,
     DuckDBFailedOpen,
+    DuckDBFailedConnect,
 }
 
 pub fn bad_engine_init(name: &str) -> ! {

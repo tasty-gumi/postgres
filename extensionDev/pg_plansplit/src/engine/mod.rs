@@ -1,8 +1,6 @@
 pub mod duck;
-use crate::error;
 
 pub unsafe fn init() {
-    if duck::DuckDBEngine::instance().is_err() {
-        error::bad_engine_init("DuckDB");
-    }
+    pgrx::log!("INIT: engine starts init to create instance");
+    duck::DuckDBEngine::instance();
 }

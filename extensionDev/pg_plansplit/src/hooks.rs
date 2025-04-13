@@ -1,3 +1,4 @@
+use crate::engine::duck::DuckDBEngine;
 use pgrx::log;
 use pgrx::pg_sys::{
     object_access_hook_type, planner_hook, planner_hook_type, standard_planner, CommonTableExpr,
@@ -7,8 +8,6 @@ use pgrx::prelude::*;
 use std::ffi::CStr;
 use std::os::raw::c_char;
 use std::slice::from_raw_parts;
-
-use crate::engine::duck;
 
 static mut PREV_PLANNER_HOOK: planner_hook_type = None;
 static mut PREV_EXECUTOR_START: ExecutorStart_hook_type = None;
@@ -23,7 +22,7 @@ pub unsafe fn init() {
 }
 
 // 外部函数接口FFI,会查找相同函数签名的C函数
-unsafe extern "C" {
+unsafe extern "C-unwind" {
     unsafe fn pg_get_querydef(query: *mut Query, pretty_flags: c_char) -> *mut c_char;
 }
 
@@ -40,7 +39,7 @@ pub unsafe fn get_querydef(query: *mut pg_sys::Query, pretty: bool) -> String {
 
 // 这里的想法是通过planner hook拦截标准规划器的行为，先将ctelist提取出来，列表中的没一个公共表表达式都存在一个已经由XXXstmt转为Query的结构指针，通过这个Query可以再转换回SQL
 #[pg_guard]
-unsafe extern "C" fn plansplit_planner(
+unsafe extern "C-unwind" fn plansplit_planner(
     parse: *mut Query,
     query_string: *const c_char,
     cursor_options: i32,
@@ -57,22 +56,8 @@ unsafe extern "C" fn plansplit_planner(
             cte_queries.push(get_querydef((*cte).ctequery as *mut Query, false));
         }
         log!("{:?}", cte_queries);
-        // duck::DuckDBEngine::instance().unwrap()
-        for cte_query in cte_queries {
-            // let result = duck::DuckDBManager::instance()
-            //     .expect("Failed to get duckdb instance")
-            //     .duckdb_prepare_and_query(&cte_query)
-            //     .expect("Failed to execute query");
-            //                 .expect("Failed to create database connection");
-            // let result: Vec<arrow::record_batch::RecordBatch> = conn
-            //     .prepare(&cte_query)
-            //     .expect("准备查询语句失败")
-            //     .query_arrow([])
-            //     .expect("执行查询失败")
-            //     .collect();
-            // log!("{:?}", result);
-            // conn.close().expect("关闭连接失败");
-        }
+        DuckDBEngine::instance().demo_sql();
+        for cte_query in cte_queries {}
     }
     standard_planner(parse, query_string, cursor_options, bound_params)
 }
