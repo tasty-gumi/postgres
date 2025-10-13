@@ -141,40 +141,76 @@ def generate_data_from_sql(sql: str, number: int):
             print(f"插入查询 {query_name} 的条目时出错: {e}")
             continue
 
-pg = Postgres()
-db_config={
-    "dbname":"tpcds10",
-    "host":"localhost",
-    "user":"windy",
-    "password":"",
-    "port":5432
-}
+def generate_baseline_from_sql(sql: str, number: int, duckdb_only=False):
+    query_name = f"{DATASET_NAME}-q{number}"
+    pg.set_settings("duckdb.force_execution","on" if duckdb_only else "off")
+    if duckdb_only:
+        strategy = {"all_postgres": "NO" ,"all_duckdb": "YES"}
+    else:
+        strategy = {"all_postgres": "YES" ,"all_duckdb": "NO"}
+    select_sql = f"SELECT count(*) FROM public.plan_explored WHERE name = '{query_name}' and strategy = '{json.dumps(strategy).replace("'", "''")}'::jsonb;"
+    existing_rows = pg.execute(select_sql,retry_limit=1, fetch=True)
+    if existing_rows and existing_rows[0][0] > 0:
+        print(f"查询 {query_name} 的基线计划已存在，跳过本次枚举")
+        return
+    try:
+        start_time = time.time()
+        plan = execute_sql_to_plan(sql)
+        latency = time.time() - start_time
+        print(f"Baseline Sample ({query_name}) on strategy {strategy}: {latency:.3f} s")
+        plan_json = json.dumps(plan[0][0][0]).replace("'", "''")
+        insert_sql = f"""
+            INSERT INTO public.plan_explored (name, sql, strategy, plan, latency_s)
+            VALUES ('{query_name}', '{sql.replace("'", "''")}', '{json.dumps(strategy).replace("'", "''")}'::jsonb, '{plan_json}'::jsonb, {round(latency, 3)});COMMIT;  
+        """
+        pg.execute(insert_sql, ( ),retry_limit=1, fetch=False)
+    except Exception as e:
+        print(f"执行查询 {query_name} 时出现异常,记录并跳过本次采样出的计划: {e}")
+        latency = 60.000 #表示超时或者失败
+        insert_sql = f"""
+            INSERT INTO public.plan_explored (name, sql,strategy, latency_s)
+            VALUES ('{query_name}', '{sql.replace("'", "''")}', '{json.dumps(strategy).replace("'", "''")}'::jsonb, {round(latency, 3)});COMMIT;  
+        """
+        pg.execute(insert_sql, ( ),retry_limit=1, fetch=False)
+        return
 
-pg.setup(
-    dbname=db_config["dbname"],
-    host=db_config["host"],
-    user=db_config["user"],
-    password=db_config["password"],
-    port=db_config["port"]
-)
+if __name__ == "__main__":
 
-pg.set_settings("search_path",f"{DATASET_NAME}")
-pg.set_settings("statement_timeout","1min")
-pg.set_settings("duckdb.max_workers_per_postgres_scan","8")
-pg.set_settings("duckdb.threads_for_postgres_scan","8")
-pg.set_settings("duckdb.convert_unsupported_numeric_to_double","1")
-pg.execute(CREATE_TABLE_SQL,retry_limit=1,fetch=False)
+    pg = Postgres()
+    db_config={
+        "dbname":"tpcds10",
+        "host":"localhost",
+        "user":"windy",
+        "password":"",
+        "port":5432
+    }
 
-schema = Schema(pg,"tpcds10")
-table_schemas = {}
-for data_table in schema.tables:
-    table_name = data_table.name 
-    table_schemas[table_name] = data_table.column_types
-# print("Schema:", table_schemas)
+    pg.setup(
+        dbname=db_config["dbname"],
+        host=db_config["host"],
+        user=db_config["user"],
+        password=db_config["password"],
+        port=db_config["port"]
+    )
 
-qnumber = QUERY_TOTAL_NUMBER.get(DATASET_NAME)
-for i in range(1,qnumber+1):
-    with open(f"{DATASET_PATH}/{DATASET_NAME}/queries/q{str(i).zfill(2)}.sql","r") as f:
-        sql = f.read()
-        generate_data_from_sql(sql=sql,number=i)
+    pg.set_settings("search_path",f"{DATASET_NAME}")
+    pg.set_settings("statement_timeout","1min")
+    pg.set_settings("duckdb.max_workers_per_postgres_scan","8")
+    pg.set_settings("duckdb.threads_for_postgres_scan","8")
+    pg.set_settings("duckdb.convert_unsupported_numeric_to_double","1")
+    pg.execute(CREATE_TABLE_SQL,retry_limit=1,fetch=False)
+
+    schema = Schema(pg,"tpcds10")
+    table_schemas = {}
+    for data_table in schema.tables:
+        table_name = data_table.name 
+        table_schemas[table_name] = data_table.column_types
+    # print("Schema:", table_schemas)
+
+    qnumber = QUERY_TOTAL_NUMBER.get(DATASET_NAME)
+    for i in range(1,qnumber+1):
+        with open(f"{DATASET_PATH}/{DATASET_NAME}/queries/q{str(i).zfill(2)}.sql","r") as f:
+            sql = f.read()
+            generate_baseline_from_sql(sql=sql,number=i,duckdb_only=True)
+            generate_data_from_sql(sql=sql,number=i)
 
