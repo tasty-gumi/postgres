@@ -1,2 +1,3 @@
 GLO/
 **/__pycache__/
+**/*/*.pth
