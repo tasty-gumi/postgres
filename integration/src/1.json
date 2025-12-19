@@ -1,0 +1,1145 @@
+{
+    "Plan": {
+        "Node Type": "Custom Scan",
+        "Custom Plan Provider": "DuckDBScan",
+        "Parallel Aware": false,
+        "Async Capable": false,
+        "Startup Cost": 0.0,
+        "Total Cost": 0.0,
+        "Plan Rows": 0,
+        "Plan Width": 0,
+        "Actual Startup Time": 0.001,
+        "Actual Total Time": 0.002,
+        "Actual Rows": 0,
+        "Actual Loops": 1,
+        "DuckDB Execution Plan": {
+            "rows_returned": 0,
+            "latency": 0.0,
+            "result_set_size": 0,
+            "query_name": "",
+            "blocked_thread_time": 0.0,
+            "system_peak_buffer_memory": 0,
+            "system_peak_temp_dir_size": 0,
+            "cpu_time": 0.0,
+            "extra_info": {},
+            "cumulative_cardinality": 0,
+            "cumulative_rows_scanned": 0,
+            "children": [
+                {
+                    "result_set_size": 0,
+                    "operator_name": "EXPLAIN_ANALYZE",
+                    "cpu_time": 0.0,
+                    "extra_info": {},
+                    "cumulative_cardinality": 0,
+                    "operator_type": "EXPLAIN_ANALYZE",
+                    "operator_cardinality": 0,
+                    "cumulative_rows_scanned": 0,
+                    "operator_rows_scanned": 0,
+                    "operator_timing": 8.01e-07,
+                    "children": [
+                        {
+                            "result_set_size": 1600,
+                            "operator_name": "TOP_N",
+                            "cpu_time": 0.0,
+                            "extra_info": {
+                                "Top": "100",
+                                "Order By": "customer.c_customer_id ASC"
+                            },
+                            "cumulative_cardinality": 0,
+                            "operator_type": "TOP_N",
+                            "operator_cardinality": 100,
+                            "cumulative_rows_scanned": 0,
+                            "operator_rows_scanned": 0,
+                            "operator_timing": 0.011740571,
+                            "children": [
+                                {
+                                    "result_set_size": 731232,
+                                    "operator_name": "PROJECTION",
+                                    "cpu_time": 0.0,
+                                    "extra_info": {
+                                        "Projections": "c_customer_id",
+                                        "Estimated Cardinality": "96153"
+                                    },
+                                    "cumulative_cardinality": 0,
+                                    "operator_type": "PROJECTION",
+                                    "operator_cardinality": 45702,
+                                    "cumulative_rows_scanned": 0,
+                                    "operator_rows_scanned": 0,
+                                    "operator_timing": 0.00012523499999999996,
+                                    "children": [
+                                        {
+                                            "result_set_size": 1462464,
+                                            "operator_name": "HASH_JOIN",
+                                            "cpu_time": 0.0,
+                                            "extra_info": {
+                                                "Join Type": "INNER",
+                                                "Conditions": "c_customer_sk = ctr_customer_sk",
+                                                "Estimated Cardinality": "96153"
+                                            },
+                                            "cumulative_cardinality": 0,
+                                            "operator_type": "HASH_JOIN",
+                                            "operator_cardinality": 45702,
+                                            "cumulative_rows_scanned": 0,
+                                            "operator_rows_scanned": 0,
+                                            "operator_timing": 0.013303210000000003,
+                                            "children": [
+                                                {
+                                                    "result_set_size": 9999720,
+                                                    "operator_name": "PGDUCKDB_POSTGRES_SCAN ",
+                                                    "cpu_time": 0.0,
+                                                    "extra_info": {
+                                                        "Table": "customer",
+                                                        "Projections": [
+                                                            "c_customer_sk",
+                                                            "c_customer_id"
+                                                        ],
+                                                        "Filters": "optional: Dynamic Filter (c_customer_id)",
+                                                        "Estimated Cardinality": "500000"
+                                                    },
+                                                    "cumulative_cardinality": 0,
+                                                    "operator_type": "TABLE_SCAN",
+                                                    "operator_cardinality": 499986,
+                                                    "cumulative_rows_scanned": 0,
+                                                    "operator_rows_scanned": 4000000,
+                                                    "operator_timing": 0.6081216460000001,
+                                                    "children": []
+                                                },
+                                                {
+                                                    "result_set_size": 731504,
+                                                    "operator_name": "HASH_JOIN",
+                                                    "cpu_time": 0.0,
+                                                    "extra_info": {
+                                                        "Join Type": "INNER",
+                                                        "Conditions": [
+                                                            "ctr_store_sk = _u_1",
+                                                            "ctr_total_return > _col_0"
+                                                        ],
+                                                        "Estimated Cardinality": "67938"
+                                                    },
+                                                    "cumulative_cardinality": 0,
+                                                    "operator_type": "HASH_JOIN",
+                                                    "operator_cardinality": 45719,
+                                                    "cumulative_rows_scanned": 0,
+                                                    "operator_rows_scanned": 0,
+                                                    "operator_timing": 0.0016279290000000002,
+                                                    "children": [
+                                                        {
+                                                            "result_set_size": 943200,
+                                                            "operator_name": "HASH_JOIN",
+                                                            "cpu_time": 0.0,
+                                                            "extra_info": {
+                                                                "Join Type": "INNER",
+                                                                "Conditions": "ctr_store_sk = s_store_sk",
+                                                                "Estimated Cardinality": "135876"
+                                                            },
+                                                            "cumulative_cardinality": 0,
+                                                            "operator_type": "HASH_JOIN",
+                                                            "operator_cardinality": 47160,
+                                                            "cumulative_rows_scanned": 0,
+                                                            "operator_rows_scanned": 0,
+                                                            "operator_timing": 0.000507607,
+                                                            "children": [
+                                                                {
+                                                                    "result_set_size": 754560,
+                                                                    "operator_name": "PGDUCKDB_POSTGRES_SCAN ",
+                                                                    "cpu_time": 0.0,
+                                                                    "extra_info": {
+                                                                        "Table": "customer_total_return",
+                                                                        "Projections": [
+                                                                            "ctr_store_sk",
+                                                                            "ctr_customer_sk",
+                                                                            "ctr_total_return"
+                                                                        ],
+                                                                        "Estimated Cardinality": "353280"
+                                                                    },
+                                                                    "cumulative_cardinality": 0,
+                                                                    "operator_type": "TABLE_SCAN",
+                                                                    "operator_cardinality": 47160,
+                                                                    "cumulative_rows_scanned": 0,
+                                                                    "operator_rows_scanned": 353280,
+                                                                    "operator_timing": 0.20705458499999999,
+                                                                    "children": [
+                                                                        {
+                                                                            "Plan": {
+                                                                                "Node Type": "Aggregate",
+                                                                                "Strategy": "Sorted",
+                                                                                "Partial Mode": "Simple",
+                                                                                "Parallel Aware": false,
+                                                                                "Async Capable": false,
+                                                                                "Startup Cost": 60275.03,
+                                                                                "Total Cost": 62284.27,
+                                                                                "Plan Rows": 14379,
+                                                                                "Plan Width": 40,
+                                                                                "Group Key": [
+                                                                                    "store_returns.sr_customer_sk",
+                                                                                    "store_returns.sr_store_sk"
+                                                                                ],
+                                                                                "Plans": [
+                                                                                    {
+                                                                                        "Node Type": "Gather Merge",
+                                                                                        "Parent Relationship": "Outer",
+                                                                                        "Parallel Aware": false,
+                                                                                        "Async Capable": false,
+                                                                                        "Startup Cost": 60275.03,
+                                                                                        "Total Cost": 61996.69,
+                                                                                        "Plan Rows": 14379,
+                                                                                        "Plan Width": 14,
+                                                                                        "Workers Planned": 4,
+                                                                                        "Plans": [
+                                                                                            {
+                                                                                                "Node Type": "Sort",
+                                                                                                "Parent Relationship": "Outer",
+                                                                                                "Parallel Aware": false,
+                                                                                                "Async Capable": false,
+                                                                                                "Startup Cost": 59274.97,
+                                                                                                "Total Cost": 59283.96,
+                                                                                                "Plan Rows": 3595,
+                                                                                                "Plan Width": 14,
+                                                                                                "Sort Key": [
+                                                                                                    "store_returns.sr_customer_sk",
+                                                                                                    "store_returns.sr_store_sk"
+                                                                                                ],
+                                                                                                "Plans": [
+                                                                                                    {
+                                                                                                        "Node Type": "Hash Join",
+                                                                                                        "Parent Relationship": "Outer",
+                                                                                                        "Parallel Aware": true,
+                                                                                                        "Async Capable": false,
+                                                                                                        "Join Type": "Inner",
+                                                                                                        "Startup Cost": 1963.81,
+                                                                                                        "Total Cost": 59062.65,
+                                                                                                        "Plan Rows": 3595,
+                                                                                                        "Plan Width": 14,
+                                                                                                        "Inner Unique": true,
+                                                                                                        "Hash Cond": "(store_returns.sr_returned_date_sk = date_dim.d_date_sk)",
+                                                                                                        "Plans": [
+                                                                                                            {
+                                                                                                                "Node Type": "Seq Scan",
+                                                                                                                "Parent Relationship": "Outer",
+                                                                                                                "Parallel Aware": true,
+                                                                                                                "Async Capable": false,
+                                                                                                                "Relation Name": "store_returns",
+                                                                                                                "Alias": "store_returns",
+                                                                                                                "Startup Cost": 0.0,
+                                                                                                                "Total Cost": 55210.24,
+                                                                                                                "Plan Rows": 719424,
+                                                                                                                "Plan Width": 18
+                                                                                                            },
+                                                                                                            {
+                                                                                                                "Node Type": "Hash",
+                                                                                                                "Parent Relationship": "Inner",
+                                                                                                                "Parallel Aware": true,
+                                                                                                                "Async Capable": false,
+                                                                                                                "Startup Cost": 1961.12,
+                                                                                                                "Total Cost": 1961.12,
+                                                                                                                "Plan Rows": 215,
+                                                                                                                "Plan Width": 4,
+                                                                                                                "Plans": [
+                                                                                                                    {
+                                                                                                                        "Node Type": "Seq Scan",
+                                                                                                                        "Parent Relationship": "Outer",
+                                                                                                                        "Parallel Aware": true,
+                                                                                                                        "Async Capable": false,
+                                                                                                                        "Relation Name": "date_dim",
+                                                                                                                        "Alias": "date_dim",
+                                                                                                                        "Startup Cost": 0.0,
+                                                                                                                        "Total Cost": 1961.12,
+                                                                                                                        "Plan Rows": 215,
+                                                                                                                        "Plan Width": 4,
+                                                                                                                        "Filter": "(d_year = 2000)"
+                                                                                                                    }
+                                                                                                                ]
+                                                                                                            }
+                                                                                                        ]
+                                                                                                    }
+                                                                                                ]
+                                                                                            }
+                                                                                        ]
+                                                                                    }
+                                                                                ]
+                                                                            }
+                                                                        }
+                                                                    ]
+                                                                },
+                                                                {
+                                                                    "result_set_size": 124,
+                                                                    "operator_name": "PGDUCKDB_POSTGRES_SCAN ",
+                                                                    "cpu_time": 0.0,
+                                                                    "extra_info": {
+                                                                        "Table": "store",
+                                                                        "Projections": "s_store_sk",
+                                                                        "Filters": "s_state='TN'",
+                                                                        "Estimated Cardinality": "20"
+                                                                    },
+                                                                    "cumulative_cardinality": 0,
+                                                                    "operator_type": "TABLE_SCAN",
+                                                                    "operator_cardinality": 31,
+                                                                    "cumulative_rows_scanned": 0,
+                                                                    "operator_rows_scanned": 816,
+                                                                    "operator_timing": 0.01993408,
+                                                                    "children": []
+                                                                }
+                                                            ]
+                                                        },
+                                                        {
+                                                            "result_set_size": 624,
+                                                            "operator_name": "SEQ_SCAN ",
+                                                            "cpu_time": 0.0,
+                                                            "extra_info": {
+                                                                "Table": "_u_0",
+                                                                "Type": "Sequential Scan",
+                                                                "Projections": [
+                                                                    "_u_1",
+                                                                    "_col_0"
+                                                                ],
+                                                                "Estimated Cardinality": "52"
+                                                            },
+                                                            "cumulative_cardinality": 0,
+                                                            "operator_type": "TABLE_SCAN",
+                                                            "operator_cardinality": 52,
+                                                            "cumulative_rows_scanned": 0,
+                                                            "operator_rows_scanned": 52,
+                                                            "operator_timing": 1.8154e-05,
+                                                            "children": [
+                                                                {
+                                                                    "Plan": {
+                                                                        "Node Type": "Custom Scan",
+                                                                        "Custom Plan Provider": "DuckDBScan",
+                                                                        "Parallel Aware": false,
+                                                                        "Async Capable": false,
+                                                                        "Startup Cost": 0.0,
+                                                                        "Total Cost": 0.0,
+                                                                        "Plan Rows": 0,
+                                                                        "Plan Width": 0,
+                                                                        "DuckDB Execution Plan": [
+                                                                            {
+                                                                                "name": "PROJECTION",
+                                                                                "children": [
+                                                                                    {
+                                                                                        "name": "HASH_GROUP_BY",
+                                                                                        "children": [
+                                                                                            {
+                                                                                                "name": "PROJECTION",
+                                                                                                "children": [
+                                                                                                    {
+                                                                                                        "name": "PGDUCKDB_POSTGRES_SCAN ",
+                                                                                                        "children": [],
+                                                                                                        "extra_info": {
+                                                                                                            "Table": "customer_total_return",
+                                                                                                            "Projections": [
+                                                                                                                "ctr_store_sk",
+                                                                                                                "ctr_total_return"
+                                                                                                            ],
+                                                                                                            "Estimated Cardinality": "353280"
+                                                                                                        }
+                                                                                                    }
+                                                                                                ],
+                                                                                                "extra_info": {
+                                                                                                    "Projections": [
+                                                                                                        "ctr_store_sk",
+                                                                                                        "ctr_total_return"
+                                                                                                    ],
+                                                                                                    "Estimated Cardinality": "353280"
+                                                                                                }
+                                                                                            }
+                                                                                        ],
+                                                                                        "extra_info": {
+                                                                                            "Groups": "#0",
+                                                                                            "Aggregates": "avg(#1)",
+                                                                                            "Estimated Cardinality": "223315"
+                                                                                        }
+                                                                                    }
+                                                                                ],
+                                                                                "extra_info": {
+                                                                                    "Projections": [
+                                                                                        "_col_0",
+                                                                                        "_u_1"
+                                                                                    ],
+                                                                                    "Estimated Cardinality": "223315"
+                                                                                }
+                                                                            }
+                                                                        ]
+                                                                    }
+                                                                }
+                                                            ]
+                                                        }
+                                                    ]
+                                                }
+                                            ]
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+    },
+    "Planning Time": 4.032,
+    "Triggers": [],
+    "Execution Time": 1.7
+},
+{
+    "Plan": {
+        "Node Type": "Custom Scan",
+        "Plan Rows": 0,
+        "Plan Width": 0,
+        "Total Cost": 0.0,
+        "Actual Rows": 0,
+        "Actual Loops": 1,
+        "Startup Cost": 0.0,
+        "Async Capable": false,
+        "Parallel Aware": false,
+        "Actual Total Time": 0.003,
+        "Actual Startup Time": 0.001,
+        "Custom Plan Provider": "DuckDBScan",
+        "DuckDB Execution Plan": {
+            "latency": 0.0,
+            "children": [
+                {
+                    "children": [
+                        {
+                            "children": [
+                                {
+                                    "children": [
+                                        {
+                                            "children": [
+                                                {
+                                                    "children": [],
+                                                    "cpu_time": 0.0,
+                                                    "extra_info": {
+                                                        "Table": "customer",
+                                                        "Filters": "optional: Dynamic Filter (c_customer_id)",
+                                                        "Projections": [
+                                                            "c_customer_sk",
+                                                            "c_customer_id"
+                                                        ],
+                                                        "Estimated Cardinality": "500000"
+                                                    },
+                                                    "operator_name": "PGDUCKDB_POSTGRES_SCAN ",
+                                                    "operator_type": "TABLE_SCAN",
+                                                    "operator_timing": 0.5825287739999999,
+                                                    "result_set_size": 9999720,
+                                                    "operator_cardinality": 499986,
+                                                    "operator_rows_scanned": 4000000,
+                                                    "cumulative_cardinality": 0,
+                                                    "cumulative_rows_scanned": 0
+                                                },
+                                                {
+                                                    "children": [
+                                                        {
+                                                            "children": [
+                                                                {
+                                                                    "children": [
+                                                                        {
+                                                                            "Plan": {
+                                                                                "Plans": [
+                                                                                    {
+                                                                                        "Plans": [
+                                                                                            {
+                                                                                                "Plans": [
+                                                                                                    {
+                                                                                                        "Plans": [
+                                                                                                            {
+                                                                                                                "Alias": "store_returns",
+                                                                                                                "Node Type": "Seq Scan",
+                                                                                                                "Plan Rows": 719424,
+                                                                                                                "Plan Width": 18,
+                                                                                                                "Total Cost": 55210.24,
+                                                                                                                "Startup Cost": 0.0,
+                                                                                                                "Async Capable": false,
+                                                                                                                "Relation Name": "store_returns",
+                                                                                                                "Parallel Aware": true,
+                                                                                                                "Parent Relationship": "Outer"
+                                                                                                            },
+                                                                                                            {
+                                                                                                                "Plans": [
+                                                                                                                    {
+                                                                                                                        "Alias": "date_dim",
+                                                                                                                        "Filter": "(d_year = 2000)",
+                                                                                                                        "Node Type": "Seq Scan",
+                                                                                                                        "Plan Rows": 215,
+                                                                                                                        "Plan Width": 4,
+                                                                                                                        "Total Cost": 1961.12,
+                                                                                                                        "Startup Cost": 0.0,
+                                                                                                                        "Async Capable": false,
+                                                                                                                        "Relation Name": "date_dim",
+                                                                                                                        "Parallel Aware": true,
+                                                                                                                        "Parent Relationship": "Outer"
+                                                                                                                    }
+                                                                                                                ],
+                                                                                                                "Node Type": "Hash",
+                                                                                                                "Plan Rows": 215,
+                                                                                                                "Plan Width": 4,
+                                                                                                                "Total Cost": 1961.12,
+                                                                                                                "Startup Cost": 1961.12,
+                                                                                                                "Async Capable": false,
+                                                                                                                "Parallel Aware": true,
+                                                                                                                "Parent Relationship": "Inner"
+                                                                                                            }
+                                                                                                        ],
+                                                                                                        "Hash Cond": "(store_returns.sr_returned_date_sk = date_dim.d_date_sk)",
+                                                                                                        "Join Type": "Inner",
+                                                                                                        "Node Type": "Hash Join",
+                                                                                                        "Plan Rows": 3595,
+                                                                                                        "Plan Width": 14,
+                                                                                                        "Total Cost": 59062.65,
+                                                                                                        "Inner Unique": true,
+                                                                                                        "Startup Cost": 1963.81,
+                                                                                                        "Async Capable": false,
+                                                                                                        "Parallel Aware": true,
+                                                                                                        "Parent Relationship": "Outer"
+                                                                                                    }
+                                                                                                ],
+                                                                                                "Sort Key": [
+                                                                                                    "store_returns.sr_customer_sk",
+                                                                                                    "store_returns.sr_store_sk"
+                                                                                                ],
+                                                                                                "Node Type": "Sort",
+                                                                                                "Plan Rows": 3595,
+                                                                                                "Plan Width": 14,
+                                                                                                "Total Cost": 59283.96,
+                                                                                                "Startup Cost": 59274.97,
+                                                                                                "Async Capable": false,
+                                                                                                "Parallel Aware": false,
+                                                                                                "Parent Relationship": "Outer"
+                                                                                            }
+                                                                                        ],
+                                                                                        "Node Type": "Gather Merge",
+                                                                                        "Plan Rows": 14379,
+                                                                                        "Plan Width": 14,
+                                                                                        "Total Cost": 61996.69,
+                                                                                        "Startup Cost": 60275.03,
+                                                                                        "Async Capable": false,
+                                                                                        "Parallel Aware": false,
+                                                                                        "Workers Planned": 4,
+                                                                                        "Parent Relationship": "Outer"
+                                                                                    }
+                                                                                ],
+                                                                                "Strategy": "Sorted",
+                                                                                "Group Key": [
+                                                                                    "store_returns.sr_customer_sk",
+                                                                                    "store_returns.sr_store_sk"
+                                                                                ],
+                                                                                "Node Type": "Aggregate",
+                                                                                "Plan Rows": 14379,
+                                                                                "Plan Width": 40,
+                                                                                "Total Cost": 62284.27,
+                                                                                "Partial Mode": "Simple",
+                                                                                "Startup Cost": 60275.03,
+                                                                                "Async Capable": false,
+                                                                                "Parallel Aware": false
+                                                                            }
+                                                                        }
+                                                                    ],
+                                                                    "cpu_time": 0.0,
+                                                                    "extra_info": {
+                                                                        "Table": "customer_total_return",
+                                                                        "Projections": [
+                                                                            "ctr_store_sk",
+                                                                            "ctr_customer_sk",
+                                                                            "ctr_total_return"
+                                                                        ],
+                                                                        "Estimated Cardinality": "353280"
+                                                                    },
+                                                                    "operator_name": "PGDUCKDB_POSTGRES_SCAN ",
+                                                                    "operator_type": "TABLE_SCAN",
+                                                                    "operator_timing": 0.20630269399999998,
+                                                                    "result_set_size": 754560,
+                                                                    "operator_cardinality": 47160,
+                                                                    "operator_rows_scanned": 353280,
+                                                                    "cumulative_cardinality": 0,
+                                                                    "cumulative_rows_scanned": 0
+                                                                },
+                                                                {
+                                                                    "children": [],
+                                                                    "cpu_time": 0.0,
+                                                                    "extra_info": {
+                                                                        "Table": "store",
+                                                                        "Filters": "s_state='TN'",
+                                                                        "Projections": "s_store_sk",
+                                                                        "Estimated Cardinality": "20"
+                                                                    },
+                                                                    "operator_name": "PGDUCKDB_POSTGRES_SCAN ",
+                                                                    "operator_type": "TABLE_SCAN",
+                                                                    "operator_timing": 0.040941463,
+                                                                    "result_set_size": 124,
+                                                                    "operator_cardinality": 31,
+                                                                    "operator_rows_scanned": 816,
+                                                                    "cumulative_cardinality": 0,
+                                                                    "cumulative_rows_scanned": 0
+                                                                }
+                                                            ],
+                                                            "cpu_time": 0.0,
+                                                            "extra_info": {
+                                                                "Join Type": "INNER",
+                                                                "Conditions": "ctr_store_sk = s_store_sk",
+                                                                "Estimated Cardinality": "135876"
+                                                            },
+                                                            "operator_name": "HASH_JOIN",
+                                                            "operator_type": "HASH_JOIN",
+                                                            "operator_timing": 0.0004919670000000001,
+                                                            "result_set_size": 943200,
+                                                            "operator_cardinality": 47160,
+                                                            "operator_rows_scanned": 0,
+                                                            "cumulative_cardinality": 0,
+                                                            "cumulative_rows_scanned": 0
+                                                        },
+                                                        {
+                                                            "children": [
+                                                                {
+                                                                    "Plan": {
+                                                                        "Node Type": "Custom Scan",
+                                                                        "Plan Rows": 0,
+                                                                        "Plan Width": 0,
+                                                                        "Total Cost": 0.0,
+                                                                        "Startup Cost": 0.0,
+                                                                        "Async Capable": false,
+                                                                        "Parallel Aware": false,
+                                                                        "Custom Plan Provider": "DuckDBScan",
+                                                                        "DuckDB Execution Plan": [
+                                                                            {
+                                                                                "name": "PROJECTION",
+                                                                                "children": [
+                                                                                    {
+                                                                                        "name": "HASH_GROUP_BY",
+                                                                                        "children": [
+                                                                                            {
+                                                                                                "name": "PROJECTION",
+                                                                                                "children": [
+                                                                                                    {
+                                                                                                        "name": "PGDUCKDB_POSTGRES_SCAN ",
+                                                                                                        "children": [],
+                                                                                                        "extra_info": {
+                                                                                                            "Table": "customer_total_return",
+                                                                                                            "Projections": [
+                                                                                                                "ctr_store_sk",
+                                                                                                                "ctr_total_return"
+                                                                                                            ],
+                                                                                                            "Estimated Cardinality": "353280"
+                                                                                                        }
+                                                                                                    }
+                                                                                                ],
+                                                                                                "extra_info": {
+                                                                                                    "Projections": [
+                                                                                                        "ctr_store_sk",
+                                                                                                        "ctr_total_return"
+                                                                                                    ],
+                                                                                                    "Estimated Cardinality": "353280"
+                                                                                                }
+                                                                                            }
+                                                                                        ],
+                                                                                        "extra_info": {
+                                                                                            "Groups": "#0",
+                                                                                            "Aggregates": "avg(#1)",
+                                                                                            "Estimated Cardinality": "223315"
+                                                                                        }
+                                                                                    }
+                                                                                ],
+                                                                                "extra_info": {
+                                                                                    "Projections": [
+                                                                                        "_col_0",
+                                                                                        "_u_1"
+                                                                                    ],
+                                                                                    "Estimated Cardinality": "223315"
+                                                                                }
+                                                                            }
+                                                                        ]
+                                                                    }
+                                                                }
+                                                            ],
+                                                            "cpu_time": 0.0,
+                                                            "extra_info": {
+                                                                "Type": "Sequential Scan",
+                                                                "Table": "_u_0",
+                                                                "Projections": [
+                                                                    "_u_1",
+                                                                    "_col_0"
+                                                                ],
+                                                                "Estimated Cardinality": "52"
+                                                            },
+                                                            "operator_name": "SEQ_SCAN ",
+                                                            "operator_type": "TABLE_SCAN",
+                                                            "operator_timing": 0.000014377,
+                                                            "result_set_size": 624,
+                                                            "operator_cardinality": 52,
+                                                            "operator_rows_scanned": 52,
+                                                            "cumulative_cardinality": 0,
+                                                            "cumulative_rows_scanned": 0
+                                                        }
+                                                    ],
+                                                    "cpu_time": 0.0,
+                                                    "extra_info": {
+                                                        "Join Type": "INNER",
+                                                        "Conditions": [
+                                                            "ctr_store_sk = _u_1",
+                                                            "ctr_total_return > _col_0"
+                                                        ],
+                                                        "Estimated Cardinality": "67938"
+                                                    },
+                                                    "operator_name": "HASH_JOIN",
+                                                    "operator_type": "HASH_JOIN",
+                                                    "operator_timing": 0.0014944050000000003,
+                                                    "result_set_size": 731504,
+                                                    "operator_cardinality": 45719,
+                                                    "operator_rows_scanned": 0,
+                                                    "cumulative_cardinality": 0,
+                                                    "cumulative_rows_scanned": 0
+                                                }
+                                            ],
+                                            "cpu_time": 0.0,
+                                            "extra_info": {
+                                                "Join Type": "INNER",
+                                                "Conditions": "c_customer_sk = ctr_customer_sk",
+                                                "Estimated Cardinality": "96153"
+                                            },
+                                            "operator_name": "HASH_JOIN",
+                                            "operator_type": "HASH_JOIN",
+                                            "operator_timing": 0.015288631999999996,
+                                            "result_set_size": 1462464,
+                                            "operator_cardinality": 45702,
+                                            "operator_rows_scanned": 0,
+                                            "cumulative_cardinality": 0,
+                                            "cumulative_rows_scanned": 0
+                                        }
+                                    ],
+                                    "cpu_time": 0.0,
+                                    "extra_info": {
+                                        "Projections": "c_customer_id",
+                                        "Estimated Cardinality": "96153"
+                                    },
+                                    "operator_name": "PROJECTION",
+                                    "operator_type": "PROJECTION",
+                                    "operator_timing": 0.00013539000000000002,
+                                    "result_set_size": 731232,
+                                    "operator_cardinality": 45702,
+                                    "operator_rows_scanned": 0,
+                                    "cumulative_cardinality": 0,
+                                    "cumulative_rows_scanned": 0
+                                }
+                            ],
+                            "cpu_time": 0.0,
+                            "extra_info": {
+                                "Top": "100",
+                                "Order By": "customer.c_customer_id ASC"
+                            },
+                            "operator_name": "TOP_N",
+                            "operator_type": "TOP_N",
+                            "operator_timing": 0.004825445,
+                            "result_set_size": 1600,
+                            "operator_cardinality": 100,
+                            "operator_rows_scanned": 0,
+                            "cumulative_cardinality": 0,
+                            "cumulative_rows_scanned": 0
+                        }
+                    ],
+                    "cpu_time": 0.0,
+                    "extra_info": {},
+                    "operator_name": "EXPLAIN_ANALYZE",
+                    "operator_type": "EXPLAIN_ANALYZE",
+                    "operator_timing": 0.000000401,
+                    "result_set_size": 0,
+                    "operator_cardinality": 0,
+                    "operator_rows_scanned": 0,
+                    "cumulative_cardinality": 0,
+                    "cumulative_rows_scanned": 0
+                }
+            ],
+            "cpu_time": 0.0,
+            "extra_info": {},
+            "query_name": "",
+            "rows_returned": 0,
+            "result_set_size": 0,
+            "blocked_thread_time": 0.0,
+            "cumulative_cardinality": 0,
+            "cumulative_rows_scanned": 0,
+            "system_peak_buffer_memory": 0,
+            "system_peak_temp_dir_size": 0
+        }
+    },
+    "Triggers": [],
+    "Planning Time": 0.905,
+    "Execution Time": 0.945
+},
+{
+    "Plan": {
+        "Node Type": "Custom Scan",
+        "Plan Rows": 0,
+        "Plan Width": 0,
+        "Total Cost": 0.0,
+        "Actual Rows": 0,
+        "Actual Loops": 1,
+        "Startup Cost": 0.0,
+        "Async Capable": false,
+        "Parallel Aware": false,
+        "Actual Total Time": 0.001,
+        "Actual Startup Time": 0.001,
+        "Custom Plan Provider": "DuckDBScan",
+        "DuckDB Execution Plan": {
+            "latency": 0.0,
+            "children": [
+                {
+                    "children": [
+                        {
+                            "children": [
+                                {
+                                    "children": [
+                                        {
+                                            "children": [
+                                                {
+                                                    "children": [],
+                                                    "cpu_time": 0.0,
+                                                    "extra_info": {
+                                                        "Table": "customer",
+                                                        "Filters": "optional: Dynamic Filter (c_customer_id)",
+                                                        "Projections": [
+                                                            "c_customer_sk",
+                                                            "c_customer_id"
+                                                        ],
+                                                        "Estimated Cardinality": "500000"
+                                                    },
+                                                    "operator_name": "PGDUCKDB_POSTGRES_SCAN ",
+                                                    "operator_type": "TABLE_SCAN",
+                                                    "operator_timing": 0.61482056,
+                                                    "result_set_size": 9999720,
+                                                    "operator_cardinality": 499986,
+                                                    "operator_rows_scanned": 4000000,
+                                                    "cumulative_cardinality": 0,
+                                                    "cumulative_rows_scanned": 0
+                                                },
+                                                {
+                                                    "children": [
+                                                        {
+                                                            "children": [
+                                                                {
+                                                                    "children": [
+                                                                        {
+                                                                            "Plan": {
+                                                                                "Node Type": "Custom Scan",
+                                                                                "Plan Rows": 0,
+                                                                                "Plan Width": 0,
+                                                                                "Total Cost": 0.0,
+                                                                                "Startup Cost": 0.0,
+                                                                                "Async Capable": false,
+                                                                                "Parallel Aware": false,
+                                                                                "Custom Plan Provider": "DuckDBScan",
+                                                                                "DuckDB Execution Plan": [
+                                                                                    {
+                                                                                        "name": "HASH_GROUP_BY",
+                                                                                        "children": [
+                                                                                            {
+                                                                                                "name": "PROJECTION",
+                                                                                                "children": [
+                                                                                                    {
+                                                                                                        "name": "HASH_JOIN",
+                                                                                                        "children": [
+                                                                                                            {
+                                                                                                                "name": "PGDUCKDB_POSTGRES_SCAN ",
+                                                                                                                "children": [],
+                                                                                                                "extra_info": {
+                                                                                                                    "Table": "store_returns",
+                                                                                                                    "Projections": [
+                                                                                                                        "sr_returned_date_sk",
+                                                                                                                        "sr_customer_sk",
+                                                                                                                        "sr_store_sk",
+                                                                                                                        "sr_return_amt"
+                                                                                                                    ],
+                                                                                                                    "Estimated Cardinality": "2877697"
+                                                                                                                }
+                                                                                                            },
+                                                                                                            {
+                                                                                                                "name": "PGDUCKDB_POSTGRES_SCAN ",
+                                                                                                                "children": [],
+                                                                                                                "extra_info": {
+                                                                                                                    "Table": "date_dim",
+                                                                                                                    "Filters": "d_year=2000",
+                                                                                                                    "Projections": "d_date_sk",
+                                                                                                                    "Estimated Cardinality": "14609"
+                                                                                                                }
+                                                                                                            }
+                                                                                                        ],
+                                                                                                        "extra_info": {
+                                                                                                            "Join Type": "INNER",
+                                                                                                            "Conditions": "sr_returned_date_sk = d_date_sk",
+                                                                                                            "Estimated Cardinality": "575507"
+                                                                                                        }
+                                                                                                    }
+                                                                                                ],
+                                                                                                "extra_info": {
+                                                                                                    "Projections": [
+                                                                                                        "sr_customer_sk",
+                                                                                                        "sr_store_sk",
+                                                                                                        "sr_return_amt"
+                                                                                                    ],
+                                                                                                    "Estimated Cardinality": "575507"
+                                                                                                }
+                                                                                            }
+                                                                                        ],
+                                                                                        "extra_info": {
+                                                                                            "Groups": [
+                                                                                                "#0",
+                                                                                                "#1"
+                                                                                            ],
+                                                                                            "Aggregates": "sum(#2)",
+                                                                                            "Estimated Cardinality": "575506"
+                                                                                        }
+                                                                                    }
+                                                                                ]
+                                                                            }
+                                                                        }
+                                                                    ],
+                                                                    "cpu_time": 0.0,
+                                                                    "extra_info": {
+                                                                        "Type": "Sequential Scan",
+                                                                        "Table": "customer_total_return",
+                                                                        "Projections": [
+                                                                            "ctr_store_sk",
+                                                                            "ctr_customer_sk",
+                                                                            "ctr_total_return"
+                                                                        ],
+                                                                        "Estimated Cardinality": "539331"
+                                                                    },
+                                                                    "operator_name": "SEQ_SCAN ",
+                                                                    "operator_type": "TABLE_SCAN",
+                                                                    "operator_timing": 0.0033283239999999997,
+                                                                    "result_set_size": 12059304,
+                                                                    "operator_cardinality": 502471,
+                                                                    "operator_rows_scanned": 2696655,
+                                                                    "cumulative_cardinality": 0,
+                                                                    "cumulative_rows_scanned": 0
+                                                                },
+                                                                {
+                                                                    "children": [
+                                                                        {
+                                                                            "Plan": {
+                                                                                "Node Type": "Custom Scan",
+                                                                                "Plan Rows": 0,
+                                                                                "Plan Width": 0,
+                                                                                "Total Cost": 0.0,
+                                                                                "Startup Cost": 0.0,
+                                                                                "Async Capable": false,
+                                                                                "Parallel Aware": false,
+                                                                                "Custom Plan Provider": "DuckDBScan",
+                                                                                "DuckDB Execution Plan": [
+                                                                                    {
+                                                                                        "name": "PROJECTION",
+                                                                                        "children": [
+                                                                                            {
+                                                                                                "name": "PROJECTION",
+                                                                                                "children": [
+                                                                                                    {
+                                                                                                        "name": "PERFECT_HASH_GROUP_BY",
+                                                                                                        "children": [
+                                                                                                            {
+                                                                                                                "name": "PROJECTION",
+                                                                                                                "children": [
+                                                                                                                    {
+                                                                                                                        "name": "PROJECTION",
+                                                                                                                        "children": [
+                                                                                                                            {
+                                                                                                                                "name": "SEQ_SCAN ",
+                                                                                                                                "children": [],
+                                                                                                                                "extra_info": {
+                                                                                                                                    "Type": "Sequential Scan",
+                                                                                                                                    "Table": "customer_total_return",
+                                                                                                                                    "Projections": [
+                                                                                                                                        "ctr_store_sk",
+                                                                                                                                        "ctr_total_return"
+                                                                                                                                    ],
+                                                                                                                                    "Estimated Cardinality": "539331"
+                                                                                                                                }
+                                                                                                                            }
+                                                                                                                        ],
+                                                                                                                        "extra_info": {
+                                                                                                                            "Projections": [
+                                                                                                                                "__internal_compress_integral_utinyint(#0, 1)",
+                                                                                                                                "#1"
+                                                                                                                            ],
+                                                                                                                            "Estimated Cardinality": "539331"
+                                                                                                                        }
+                                                                                                                    }
+                                                                                                                ],
+                                                                                                                "extra_info": {
+                                                                                                                    "Projections": [
+                                                                                                                        "ctr_store_sk",
+                                                                                                                        "ctr_total_return"
+                                                                                                                    ],
+                                                                                                                    "Estimated Cardinality": "539331"
+                                                                                                                }
+                                                                                                            }
+                                                                                                        ],
+                                                                                                        "extra_info": {
+                                                                                                            "Groups": "#0",
+                                                                                                            "Aggregates": "avg(#1)"
+                                                                                                        }
+                                                                                                    }
+                                                                                                ],
+                                                                                                "extra_info": {
+                                                                                                    "Projections": [
+                                                                                                        "__internal_decompress_integral_integer(#0, 1)",
+                                                                                                        "#1"
+                                                                                                    ],
+                                                                                                    "Estimated Cardinality": "56"
+                                                                                                }
+                                                                                            }
+                                                                                        ],
+                                                                                        "extra_info": {
+                                                                                            "Projections": [
+                                                                                                "_col_0",
+                                                                                                "_u_1"
+                                                                                            ],
+                                                                                            "Estimated Cardinality": "56"
+                                                                                        }
+                                                                                    }
+                                                                                ]
+                                                                            }
+                                                                        }
+                                                                    ],
+                                                                    "cpu_time": 0.0,
+                                                                    "extra_info": {
+                                                                        "Type": "Sequential Scan",
+                                                                        "Table": "_u_0",
+                                                                        "Projections": [
+                                                                            "_u_1",
+                                                                            "_col_0"
+                                                                        ],
+                                                                        "Estimated Cardinality": "52"
+                                                                    },
+                                                                    "operator_name": "SEQ_SCAN ",
+                                                                    "operator_type": "TABLE_SCAN",
+                                                                    "operator_timing": 0.000006513,
+                                                                    "result_set_size": 624,
+                                                                    "operator_cardinality": 52,
+                                                                    "operator_rows_scanned": 52,
+                                                                    "cumulative_cardinality": 0,
+                                                                    "cumulative_rows_scanned": 0
+                                                                }
+                                                            ],
+                                                            "cpu_time": 0.0,
+                                                            "extra_info": {
+                                                                "Join Type": "INNER",
+                                                                "Conditions": [
+                                                                    "ctr_store_sk = _u_1",
+                                                                    "CAST(ctr_total_return AS DOUBLE) > _col_0"
+                                                                ],
+                                                                "Estimated Cardinality": "3224"
+                                                            },
+                                                            "operator_name": "HASH_JOIN",
+                                                            "operator_type": "HASH_JOIN",
+                                                            "operator_timing": 0.021115188999999996,
+                                                            "result_set_size": 2590740,
+                                                            "operator_cardinality": 129537,
+                                                            "operator_rows_scanned": 0,
+                                                            "cumulative_cardinality": 0,
+                                                            "cumulative_rows_scanned": 0
+                                                        },
+                                                        {
+                                                            "children": [],
+                                                            "cpu_time": 0.0,
+                                                            "extra_info": {
+                                                                "Table": "store",
+                                                                "Filters": "s_state='TN'",
+                                                                "Projections": "s_store_sk",
+                                                                "Estimated Cardinality": "20"
+                                                            },
+                                                            "operator_name": "PGDUCKDB_POSTGRES_SCAN ",
+                                                            "operator_type": "TABLE_SCAN",
+                                                            "operator_timing": 0.026796056999999998,
+                                                            "result_set_size": 124,
+                                                            "operator_cardinality": 31,
+                                                            "operator_rows_scanned": 816,
+                                                            "cumulative_cardinality": 0,
+                                                            "cumulative_rows_scanned": 0
+                                                        }
+                                                    ],
+                                                    "cpu_time": 0.0,
+                                                    "extra_info": {
+                                                        "Join Type": "INNER",
+                                                        "Conditions": "ctr_store_sk = s_store_sk",
+                                                        "Estimated Cardinality": "1151"
+                                                    },
+                                                    "operator_name": "HASH_JOIN",
+                                                    "operator_type": "HASH_JOIN",
+                                                    "operator_timing": 0.0011449909999999997,
+                                                    "result_set_size": 365752,
+                                                    "operator_cardinality": 45719,
+                                                    "operator_rows_scanned": 0,
+                                                    "cumulative_cardinality": 0,
+                                                    "cumulative_rows_scanned": 0
+                                                }
+                                            ],
+                                            "cpu_time": 0.0,
+                                            "extra_info": {
+                                                "Join Type": "INNER",
+                                                "Conditions": "c_customer_sk = ctr_customer_sk",
+                                                "Estimated Cardinality": "1912"
+                                            },
+                                            "operator_name": "HASH_JOIN",
+                                            "operator_type": "HASH_JOIN",
+                                            "operator_timing": 0.017435545,
+                                            "result_set_size": 1096848,
+                                            "operator_cardinality": 45702,
+                                            "operator_rows_scanned": 0,
+                                            "cumulative_cardinality": 0,
+                                            "cumulative_rows_scanned": 0
+                                        }
+                                    ],
+                                    "cpu_time": 0.0,
+                                    "extra_info": {
+                                        "Projections": "c_customer_id",
+                                        "Estimated Cardinality": "1912"
+                                    },
+                                    "operator_name": "PROJECTION",
+                                    "operator_type": "PROJECTION",
+                                    "operator_timing": 0.000142632,
+                                    "result_set_size": 731232,
+                                    "operator_cardinality": 45702,
+                                    "operator_rows_scanned": 0,
+                                    "cumulative_cardinality": 0,
+                                    "cumulative_rows_scanned": 0
+                                }
+                            ],
+                            "cpu_time": 0.0,
+                            "extra_info": {
+                                "Top": "100",
+                                "Order By": "customer.c_customer_id ASC"
+                            },
+                            "operator_name": "TOP_N",
+                            "operator_type": "TOP_N",
+                            "operator_timing": 0.007389828999999999,
+                            "result_set_size": 1600,
+                            "operator_cardinality": 100,
+                            "operator_rows_scanned": 0,
+                            "cumulative_cardinality": 0,
+                            "cumulative_rows_scanned": 0
+                        }
+                    ],
+                    "cpu_time": 0.0,
+                    "extra_info": {},
+                    "operator_name": "EXPLAIN_ANALYZE",
+                    "operator_type": "EXPLAIN_ANALYZE",
+                    "operator_timing": 0.00000033,
+                    "result_set_size": 0,
+                    "operator_cardinality": 0,
+                    "operator_rows_scanned": 0,
+                    "cumulative_cardinality": 0,
+                    "cumulative_rows_scanned": 0
+                }
+            ],
+            "cpu_time": 0.0,
+            "extra_info": {},
+            "query_name": "",
+            "rows_returned": 0,
+            "result_set_size": 0,
+            "blocked_thread_time": 0.0,
+            "cumulative_cardinality": 0,
+            "cumulative_rows_scanned": 0,
+            "system_peak_buffer_memory": 0,
+            "system_peak_temp_dir_size": 0
+        }
+    },
+    "Triggers": [],
+    "Planning Time": 1.396,
+    "Execution Time": 0.719
+}

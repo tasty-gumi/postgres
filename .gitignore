@@ -46,3 +46,4 @@ lib*.pc
 .cache
 /integration/test/DSGen-software-code-4.0.0
 compile_commands.json
+.vscode/

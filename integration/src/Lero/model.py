@@ -8,10 +8,10 @@ import torch.nn as nn
 import torch.optim
 from torch.utils.data import DataLoader
 
-from feature import SampleEntity
-from TreeConvolution.tcnn import (BinaryTreeConv, DynamicPooling,
+from Lero.feature import SampleEntity
+from Lero.TreeConvolution.tcnn import (BinaryTreeConv, DynamicPooling,
                                   TreeActivation, TreeLayerNorm)
-from TreeConvolution.util import prepare_trees
+from Lero.TreeConvolution.util import prepare_trees
 
 CUDA = torch.cuda.is_available()
 GPU_LIST = [0, 1, 2, 3, 4, 5, 6, 7]

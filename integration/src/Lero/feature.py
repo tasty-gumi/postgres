@@ -9,10 +9,17 @@ LABEL_LIST = ['Actual Startup Time', 'Actual Total Time', 'Actual Self Time']
 
 UNKNOWN_OP_TYPE = "Unknown"
 SCAN_TYPES = ["Seq Scan", "Index Scan", "Index Only Scan", 'Bitmap Heap Scan']
-JOIN_TYPES = ["Nested Loop", "Hash Join", "Merge Join"]
-OTHER_TYPES = ['Bitmap Index Scan']
-OP_TYPES = [UNKNOWN_OP_TYPE, "Hash", "Materialize", "Sort", "Aggregate", "Incremental Sort", "Limit"] \
-    + SCAN_TYPES + JOIN_TYPES + OTHER_TYPES
+PG_OPERATOR_LIST = ['Bitmap Heap Scan', 'Merge Join', 'Materialize', 'Function Scan', 'Limit', 'Gather', 
+                    'Merge Append', 'Seq Scan', 'Nested Loop', 'Append', 'Incremental Sort', 'Hash', 'Sort',
+                      'Hash Join', 'Custom Scan', 'CTE Scan', 'Memoize', 'SetOp', 'WindowAgg', 'Gather Merge',
+                        'Index Only Scan', 'Group', 'Aggregate', 'BitmapAnd', 'Result', 'Subquery Scan', 
+                        'Bitmap Index Scan', 'Unique', 'Index Scan']
+DUCKDB_OPERATOR_LIST = ['PROJECTION', 'HASH_JOIN', 'COLUMN_DATA_SCAN', 'UNNEST', 'EXPLAIN_ANALYZE', 
+                        'HASH_GROUP_BY', 'LEFT_DELIM_JOIN', 'TOP_N', 'PGDUCKDB_POSTGRES_SCAN ',
+                          'STREAMING_LIMIT', 'PERFECT_HASH_GROUP_BY', 'DUMMY_SCAN', 'SEQ_SCAN ', 
+                          'CROSS_PRODUCT', 'DELIM_SCAN', 'ORDER_BY', 'FILTER', 'STREAMING_WINDOW', 
+                          'WINDOW', 'INOUT_FUNCTION', 'UNGROUPED_AGGREGATE']
+OP_TYPES = [UNKNOWN_OP_TYPE] + PG_OPERATOR_LIST + DUCKDB_OPERATOR_LIST
 
 
 def json_str_to_json_obj(json_data):
@@ -193,7 +200,11 @@ class AnalyzeJsonParser(FeatureParser):
         self.normalizer = normalizer
         self.input_relations = input_relations
 
-    def extract_feature(self, json_rel) -> SampleEntity:
+    def extract_feature(self, json_rel:dict) -> SampleEntity:
+        if 'Plan' in json_rel:
+            json_rel = json_rel['Plan']
+        if 'DuckDB Execution Plan' in json_rel:
+            json_rel = json_rel['DuckDB Execution Plan']
         left = None
         right = None
         input_relations = []
@@ -209,18 +220,33 @@ class AnalyzeJsonParser(FeatureParser):
                 input_relations += right.input_tables
             else:
                 right = SampleEntity(op_to_one_hot(UNKNOWN_OP_TYPE), 0, 0, 0, 0,
-                                     None, None, 0, 0, [], self.encode_relation_names([]))
+                                     None, None, 0, 0, [], [])
+        if 'children' in json_rel:
+            children = json_rel['children']
+            if len(children) >=1:
+                left = self.extract_feature(children[0])
+                if len(children) == 2:
+                    right =  self.extract_feature(children[1])
+                else:
+                    right = SampleEntity(op_to_one_hot(UNKNOWN_OP_TYPE), 0, 0, 0, 0,
+                                        None, None, 0, 0, [], [])
 
-        node_type = op_to_one_hot(json_rel['Node Type'])
+        if isinstance(json_rel,list):
+            json_rel = json_rel[0]
+        assert(isinstance(json_rel,dict))
+        node_type = json_rel.get('Node Type',None)
+        if node_type is None:
+            node_type = json_rel.get('operator_name','Unknown')
+        node_type = op_to_one_hot(node_type)
         # startup_cost = self.normalizer.norm(float(json_rel['Startup Cost']), 'Startup Cost')
         # total_cost = self.normalizer.norm(float(json_rel['Total Cost']), 'Total Cost')
         startup_cost = None
         total_cost = None
-        rows = self.normalizer.norm(float(json_rel['Plan Rows']), 'Plan Rows')
-        width = int(json_rel['Plan Width'])
+        rows = float(json_rel.get('Plan Rows',0.0))
+        width = int(json_rel.get('Plan Width',0.0))
 
-        if json_rel['Node Type'] in SCAN_TYPES:
-            input_relations.append(json_rel["Relation Name"])
+        # if json_rel['Node Type'] in SCAN_TYPES:
+        #     input_relations.append(json_rel["Relation Name"])
 
         startup_time = None
         if 'Actual Startup Time' in json_rel:
@@ -231,7 +257,7 @@ class AnalyzeJsonParser(FeatureParser):
 
         return SampleEntity(node_type, startup_cost, total_cost, rows, width, left,
                             right, startup_time, total_time,
-                            input_relations, self.encode_relation_names(input_relations))
+                            [], [])
 
     def encode_relation_names(self, l):
         encode_arr = np.zeros(len(self.input_relations) + 1)
