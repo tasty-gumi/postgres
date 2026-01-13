@@ -1,11 +1,13 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import random
 from torch.utils.data import Dataset, DataLoader
 import numpy as np
 import os
-from typing import List, Dict, Tuple,Any, Optional  # 类型提示
+from typing import Iterable, List, Dict, Tuple, Optional,cast  # 类型提示
 
+DEFAULT_MODEL_ID = 'demo'
 FEATURE_LIST = ['Node Type', 'Startup Cost',
                 'Total Cost', 'Plan Rows', 'Plan Width']
 LABEL_LIST = ['Actual Startup Time', 'Actual Total Time', 'Actual Self Time']
@@ -28,146 +30,156 @@ UNIFIED_OPERATOR_LIST = [UNKNOWN_OP_TYPE] + PG_OPERATOR_LIST + DUCKDB_OPERATOR_L
 # 生成算子名称到索引的映射
 OPERATOR_MAP = {op: i for i, op in enumerate(UNIFIED_OPERATOR_LIST)}
 
-NODE_FEATURE_DIM = len(UNIFIED_OPERATOR_LIST) + 9  # one-hot 编码长度 + 数值特征数量
+NODE_FEATURE_DIM = len(UNIFIED_OPERATOR_LIST) + 7  # one-hot 编码长度 + 数值特征数量
 
-def process_query_groups(query_groups, group_size=20, pad_latency=600.0):
-    """
-    处理query_groups，按每个查询的计划构建训练组（每组20个）
-    不足20个的用空字典{}和pad_latency填充
-    
-    Args:
-        query_groups: 原始查询组列表，每个元素含'query_name'、'plans'、'latencies'等字段
-        group_size: 每组计划数量（固定为20）
-        pad_latency: 填充计划的时延标签
-    
-    Returns:
-        plan_groups: 处理后的计划组列表，形状为 (总组数, 20)，每个元素是计划JSON（或空字典）
-        latency_groups: 对应的时延组列表，形状为 (总组数, 20)
-    """
-    plan_groups = []
-    latency_groups = []
-    
-    for group in query_groups:
-        query_name = group['query_name']
-        plans = group['plans']  # 该查询的所有计划（JSON列表）
-        latencies = group['latencies']  # 对应计划的实际时延（列表）
-        
-        # 校验plans和latencies长度一致
-        assert len(plans) == len(latencies), \
-            f"查询 {query_name} 的plans与latencies长度不匹配"
-        
-        total_plans = len(plans)
-        # 计算需要拆分的组数（向上取整）
-        num_groups = (total_plans + group_size - 1) // group_size
-        
-        for i in range(num_groups):
-            # 提取当前组的计划和时延（左闭右开区间）
-            start_idx = i * group_size
-            end_idx = start_idx + group_size
-            current_plans = plans[start_idx:end_idx]
-            current_latencies = latencies[start_idx:end_idx]
-            
-            # 计算需要填充的数量
-            pad_count = group_size - len(current_plans)
-            if pad_count > 0:
-                # 填充空字典作为计划，填充pad_latency作为时延
-                current_plans += [{} for _ in range(pad_count)]
-                current_latencies += [pad_latency for _ in range(pad_count)]
-            
-            # 确认每组正好20个
-            assert len(current_plans) == group_size and len(current_latencies) == group_size, \
-                f"查询 {query_name} 的第{i}组计划数量异常"
-            
-            # 添加到结果列表
-            plan_groups.append(current_plans)
-            latency_groups.append(current_latencies)
-    
-    print(f"处理完成：共生成 {len(plan_groups)} 个训练组，每组 {group_size} 个计划")
-    return plan_groups, latency_groups
-
-class PlanDatasetListwise(Dataset):
-    """Listwise 训练数据集：每组包含 20 个候选计划树（JSON）和对应的实际延迟"""
-    def __init__(self, plan_groups: List[List[Dict]], latency_groups: List[List[float]]):
-        """
-        Args:
-            plan_groups: 计划组列表，每个元素是 20 个计划树的 JSON 字典（根节点）
-            latency_groups: 延迟组列表，每个元素是 20 个计划的实际执行延迟（与计划组一一对应）
-        """
-        assert len(plan_groups) == len(latency_groups), "计划组与延迟组数量必须一致"
-        assert all(len(group) == 20 for group in plan_groups), "每组必须包含 20 个候选计划"
-        assert all(len(latency) == 20 for latency in latency_groups), "每组延迟必须包含 20 个值"
-        
-        self.plan_groups = plan_groups
-        self.latency_groups = latency_groups
-
-    def __len__(self) -> int:
-        return len(self.plan_groups)
-
-    def __getitem__(self, idx: int) -> Tuple[List[Dict], torch.Tensor]:
-        """返回单组数据：(20个计划树JSON, 20个实际延迟)"""
-        plans = self.plan_groups[idx]
-        latencies = torch.tensor(self.latency_groups[idx], dtype=torch.float32)
-        return plans, latencies
+MODEL_PATH = f"/home/windy/postgres/integration/src/model"
 
 class UnifiedPlanNode:
     """
-    统一计划节点，统一处理 PG 和 DuckDB 风格的计划字典；
-    如果 node 中含有 "Node Type"，则认为是 PG 计划，
-    如果有 "operator_name"，则认为是 DuckDB 计划。
+    统一计划节点：能够同时解析 PG 的标准字段和 DuckDB 的 extra_info
     """
     def __init__(self, node: dict):
-        # duckdb执行计划和pg执行计划根节点不可能同时出现
+        # 1. 拆包处理：处理 {"Plan": {...}} 或 {"DuckDB Execution Plan": [...]} 这种嵌套外壳
         if 'Plan' in node and isinstance(node['Plan'], dict):
             node = node['Plan']
-        if 'DuckDB Execution Plan' in node and isinstance(node['DuckDB Execution Plan'], dict):
-            node = node['DuckDB Execution Plan']
-        self.node_type = node.get("Node Type", "Unknown") if "Node Type" in node else node.get("operator_name", "Unknown")
-        self.row_startup_cost = np.float32(node.get("Startup Cost", 0))
-        self.row_total_cost = np.float32(node.get("Total Cost", 0))
-        self.row_plan_rows = np.float32(node.get("Plan Rows", 0))
-        self.row_plan_width = np.float32(node.get("Plan Width", 0))
-        self.row_worker_planned = np.float32(node.get("Workers Planned", 1))
-        self.col_operator_timing = np.float32(node.get("operator_timing", 0))
-        self.col_result_set_size = np.float32(node.get("result_set_size", 0))
-        self.col_operator_cardinality = np.float32(node.get("operator_cardinality", 0))
-        self.col_operator_rows_scanned = np.float32(node.get("operator_rows_scanned", 0))
+        # 注意：DuckDB 的 JSON 根经常是一个 List，但在递归过程中通常是 Dict
+        # 如果是列表，通常取第一个元素作为根（视具体 JSON 结构而定）
+        if 'DuckDB Execution Plan' in node and isinstance(node['DuckDB Execution Plan'], list):
+             node = node['DuckDB Execution Plan'][0]
 
-        # 递归构造子节点：支持 PG 格式（"Plans" 或 "children"）以及 DuckDB 格式（可能嵌套在 "DuckDB Execution Plan" 中）
+        # 2. 识别节点类型
+        # PG 使用 "Node Type", DuckDB 使用 "name"
+        if "Node Type" in node:
+            self.node_type = node["Node Type"]
+            self.is_duckdb = 0.0
+        elif "name" in node:
+            self.node_type = node["name"]
+            self.is_duckdb = 1.0
+        else:
+            self.node_type = "Unknown"
+            self.is_duckdb = 0.0 # Default
+
+        # 3. 提取特征 (Feature Extraction)
+        self._extract_features(node)
+
+        # 4. 递归构造子节点
         self.children = []
-        for key in ["Plans", "children"]:
-            if key in node and isinstance(node[key], list):
-                for child in node[key]:
-                    if isinstance(child, dict):
-                        self.children.append(UnifiedPlanNode(child))
-                break
+        
+        # PG 的子节点通常在 "Plans" 中
+        if "Plans" in node and isinstance(node["Plans"], list):
+            for child in node["Plans"]:
+                self.children.append(UnifiedPlanNode(child))
+        
+        # DuckDB 的子节点通常在 "children" 中
+        if "children" in node and isinstance(node["children"], list):
+            for child in node["children"]:
+                # DuckDB 的 children 有时直接是 Dict，有时包裹在 List 里
+                self.children.append(UnifiedPlanNode(child))
+        
+        # 特殊情况：DuckDB 节点内部包裹了 PG 节点 (如 PGDUCKDB_POSTGRES_SCAN)
+        # 这种情况下，PG 的 Plan 可能藏在 children 里，已经被上面的逻辑处理了
+        # 但有时 PGDUCKDB 会把 PG Plan 放在 extra_info 或其他字段，需根据实际 JSON 调整
+        # 根据你提供的 JSON，PG Plan 是作为 children 列表的一个元素存在的，
+        # 且该元素是一个 {"Plan": ...} 的字典，上面的递归逻辑应该能覆盖。
+
+    def _extract_features(self, node: dict):
+        """核心：特征对齐逻辑"""
+        
+        # --- A. 提取 Cardinality (行数) ---
+        if not self.is_duckdb:
+            # PG
+            self.est_rows = float(node.get("Plan Rows", 0))
+        else:
+            # DuckDB: 也就是 extra_info -> Estimated Cardinality
+            extra = node.get("extra_info", {})
+            # 注意：JSON 中可能是字符串 "133111200"，需要强转
+            card_str = str(extra.get("Estimated Cardinality", "0"))
+            try:
+                self.est_rows = float(card_str)
+            except ValueError:
+                self.est_rows = 0.0
+
+        # --- B. 提取 Cost (代价) ---
+        if not self.is_duckdb:
+            # PG
+            self.total_cost = float(node.get("Total Cost", 0))
+            self.startup_cost = float(node.get("Startup Cost", 0))
+        else:
+            # DuckDB 无 Cost 概念，置 0
+            self.total_cost = 0.0
+            self.startup_cost = 0.0
+
+        # --- C. 提取 Width (宽度/列数) ---
+        if not self.is_duckdb:
+            # PG: 直接有字节宽度
+            self.width = float(node.get("Plan Width", 0))
+        else:
+            # DuckDB: 使用 Projections 列表长度作为宽度的代理
+            extra = node.get("extra_info", {})
+            projections = extra.get("Projections", [])
+            if isinstance(projections, list):
+                self.width = float(len(projections))
+            elif isinstance(projections, str):
+                # 有时是 "col1, col2" 字符串
+                self.width = float(len(projections.split(',')))
+            else:
+                self.width = 1.0 # 默认值
+
+        # --- D. 提取 Condition Complexity (过滤条件数量) ---
+        # 这是一个新特征，用于弥补 DuckDB 没有 Cost 的信息缺失
+        self.num_conditions = 0.0
+        if not self.is_duckdb:
+            # PG: 简单的统计 Filter 字符串长度，或者简单的 0/1
+            if "Filter" in node:
+                self.num_conditions = 1.0 + node["Filter"].count("AND")
+        else:
+            # DuckDB
+            extra = node.get("extra_info", {})
+            # 可能是 "Conditions" (List or Str) 或 "Filters"
+            conds = extra.get("Conditions", extra.get("Filters", []))
+            if isinstance(conds, list):
+                self.num_conditions = float(len(conds))
+            elif isinstance(conds, str):
+                # 比如 "d_year=2002"
+                self.num_conditions = 1.0
+                if len(conds) > 0:
+                     # 粗略估计复杂度
+                     self.num_conditions += conds.count("AND") + conds.count("OR")
 
     def unified_op_to_one_hot(self, op_name):
-        """对算子进行 one-hot 编码；未匹配项归为 Unknown"""
         one_hot = np.zeros(len(UNIFIED_OPERATOR_LIST), dtype=np.float32)
-        idx = OPERATOR_MAP.get(op_name, OPERATOR_MAP["Unknown"])
+        idx = OPERATOR_MAP.get(op_name, OPERATOR_MAP[UNKNOWN_OP_TYPE])
         one_hot[idx] = 1.0
         return one_hot
 
     def plan_node_to_vector(self):
         """
-        获取节点向量：由
-          1. 节点类型的 one-hot 编码（使用统一的算子列表）
-          2. 数值特征经过 log 转换后(Startup Cost, Total Cost, Plan Rows, Plan Width,
-             Actual Startup Time, Actual Total Time, Actual Rows, Actual Loops)
-        组成
+        生成数值向量。
+        关键：必须使用 log1p 处理 Rows 和 Cost，因为它们即使在同一棵树里，
+        PG 的 Cost 和 DuckDB 的 Cardinality 也可能不在一个数量级。
         """
         op_vector = self.unified_op_to_one_hot(self.node_type)
+        
         numeric_features = np.array([
-            self.row_startup_cost,
-            self.row_total_cost,
-            self.row_plan_rows,
-            self.row_plan_width,
-            self.row_worker_planned,
-            self.col_operator_timing,
-            self.col_result_set_size,
-            self.col_operator_cardinality,
-            self.col_operator_rows_scanned,
+            # 1. 引擎标识 (非常重要)
+            self.is_duckdb, 
+            
+            # 2. 基础数值 (Log处理)
+            np.log1p(self.est_rows),      # 统一后的行数
+            np.log1p(self.width),         # 统一后的宽度 (PG是字节, DuckDB是列数, 网络会自己学习区别)
+            
+            # 3. 代价特征 (DuckDB 为 0)
+            np.log1p(self.total_cost),
+            np.log1p(self.startup_cost),
+            
+            # 4. 复杂度特征
+            np.log1p(self.num_conditions), # 过滤/连接条件数量
+            
+            # 5. 结构特征
+            float(len(self.children))      # 子节点数量
+            
         ], dtype=np.float32)
+        
         return np.concatenate([op_vector, numeric_features])
 
 class Plan:
@@ -195,6 +207,36 @@ class Plan:
         return {"features": vec, "children": [self._featurize_node(child)
                                                 for child in node.children]}
 
+BatchData = Tuple[List[List[Plan]], torch.Tensor]
+
+class PlanDatasetListwise(Dataset):
+    """Listwise 训练数据集：每组包含 k 个候选计划树（JSON）和对应的实际延迟"""
+    def __init__(self, plan_groups: List[List[Dict]], latency_groups: List[List[float]],k: int =5):
+        """
+        Args:
+            plan_groups: 计划组列表，每个元素是 5 个计划树的 JSON 字典（根节点）
+            latency_groups: 延迟组列表，每个元素是 5 个计划的实际执行延迟（与计划组一一对应）
+        """
+        assert len(plan_groups) == len(latency_groups), "计划组与延迟组数量必须一致"
+        assert all(len(group) == k for group in plan_groups), f"每组必须包含 {k} 个候选计划"
+        assert all(len(latency) == k for latency in latency_groups), f"每组延迟必须包含 {k} 个值"
+
+        self.latency_groups =  torch.tensor(latency_groups, dtype=torch.float32)
+        print("正在预处理 Plan 对象，请稍候...")
+        self.plan_objects_groups = []
+        # 这里只做一次，之后训练直接取对象
+        for group in plan_groups:
+            obj_group = [Plan(p) for p in group]
+            self.plan_objects_groups.append(obj_group)
+        print("预处理完成！")
+
+    def __len__(self) -> int:
+        return len(self.plan_objects_groups)
+    
+    def __getitem__(self, idx: int) -> Tuple[List[Plan], torch.Tensor]:
+        """返回单组数据：(k个计划树对象, k个实际延迟)"""
+        return self.plan_objects_groups[idx], self.latency_groups[idx]
+    
 class MultiInputLSTM(nn.Module):
     def __init__(self, hidden_size, in_feature_size=None, input_branches=2, output_branches=1):
         """
@@ -291,14 +333,14 @@ class PlanFeaturizer(nn.Module):
     def __init__(self, 
                  hidden_size: int,          # LSTM隐状态维度
                  node_feature_dim: int,     # 计划节点的特征向量维度（op_one_hot + 数值特征）
-                 input_branches: int = 2,    # 输入分支数（子节点数量，默认二叉树，多叉树的时候可以选择最重要的两个孩子）
+                 input_branches: int = 3,    # 输入分支数（子节点数量，默认二叉树，多叉树的时候可以选择最重要的两个孩子）
                  output_branches: int = 1): # 输出分支数（默认1，单编码输出）
         super().__init__()
         self.hidden_size = hidden_size
         self.node_feature_dim = node_feature_dim
         self.input_branches = input_branches
         self.output_branches = output_branches
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = device
         
         # 线性层：将节点原始特征映射到hidden_size维度（适配MultiInputLSTM的输入）
         self.node_feature_proj = nn.Sequential(
@@ -315,9 +357,10 @@ class PlanFeaturizer(nn.Module):
             input_branches=input_branches,             # 根据子节点数量动态调整，初始化无意义
             output_branches=output_branches
         )
-
-        self.zero_h = torch.zeros(1, self.hidden_size, device=self.device, dtype=torch.float32)
-        self.zero_c = torch.zeros(1, self.hidden_size, device=self.device, dtype=torch.float32)
+        # 使用 register_buffer，这样调用 model.to(device) 时它们会自动移动，
+        # 且保存模型 state_dict 时也会包含它们
+        self.register_buffer('zero_h', torch.zeros(1, self.hidden_size, device=self.device, dtype=torch.float32))
+        self.register_buffer('zero_c', torch.zeros(1, self.hidden_size, device=self.device, dtype=torch.float32))
 
     def forward(self, plan: Plan) -> torch.Tensor:
         """
@@ -376,7 +419,7 @@ class ListwiseComparator(nn.Module):
 
     返回值：`probs, scores`，其中 `probs` 是归一化概率 (batch, k)，`scores` 是未归一化分数 (batch, k)
     """
-    def __init__(self, hidden_size: int = 8, k: int = 20, mode: str = "mlp", use_context: bool = True, attn_heads: int = 4, plan_featurizer: PlanFeaturizer = None):
+    def __init__(self, hidden_size: int = 8, k: int = 5, mode: str = "mlp", use_context: bool = True, attn_heads: int = 4, plan_featurizer: PlanFeaturizer = None):
         super().__init__()
         self.hidden_size = hidden_size
         self.k = k
@@ -385,7 +428,7 @@ class ListwiseComparator(nn.Module):
         self.device = device
 
         # 内置 PlanFeaturizer：若外部未提供，则构造一个默认的实例（使用全局 NODE_FEATURE_DIM）
-        self.plan_featurizer = PlanFeaturizer(hidden_size=hidden_size, node_feature_dim=NODE_FEATURE_DIM) if plan_featurizer is None else plan_featurizer
+        self.plan_featurizer = PlanFeaturizer(hidden_size=self.hidden_size, node_feature_dim=NODE_FEATURE_DIM) if plan_featurizer is None else plan_featurizer
         if mode == "mlp":
             in_size = hidden_size * (2 if use_context else 1)
             self.scorer = nn.Sequential(
@@ -399,8 +442,6 @@ class ListwiseComparator(nn.Module):
             self.scorer = nn.Linear(hidden_size, 1, device=self.device, dtype=torch.float32)
         else:
             raise ValueError(f"Unsupported mode: {mode}")
-
-
 
     def forward(self, plan_embeddings: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         """
@@ -424,15 +465,20 @@ class ListwiseComparator(nn.Module):
         probs = torch.softmax(scores, dim=-1)
         return probs, scores
 
-    
     def fit(self,
             plan_groups: List[List[Dict]],
             latency_groups: List[List[float]],
-            epochs: int = 100,
-            lr: float = 1e-4,
+            epochs: int = 300,
+            lr: float = 1e-3,
             batch_size: int = 8,
-            fine_tune_featurizer: bool = True,
-            print_every: int = 10):
+            train_featurizer: bool = True,
+            print_every: int = 10,
+            lambda_latency = 1.0,   # alpha 的缩放系数：控制对长尾延迟的关注度
+            omega_topk = 3.0,        # beta 的加权系数：Top-k 样本的权重增加倍数
+            tolerance_ratio = 0.01 ,# 默认允许模型选择计划和最优计划之间有5%的时延误差，视作不影响实践的物理计划实际性能
+            patience = 7,       # 容忍多少个 epoch 验证集 loss 不下降
+            min_delta = 0.0,  # 只有 loss 下降幅度超过这个值才算有效
+            ):
         """
         在给定若干查询组（每组固定大小 k，例如 process_query_groups 的输出）的基础上训练 ListwiseComparator。
 
@@ -445,108 +491,272 @@ class ListwiseComparator(nn.Module):
         参数：
         - plan_groups, latency_groups: 与 `process_query_groups` 返回格式一致的 list。
         - plan_featurizer: `PlanFeaturizer` 实例，用于将 plan JSON 编码为 embedding（Module）。
-        - fine_tune_featurizer: 若为 True，则同时更新 featurizer 的参数（较慢）；默认仅训练 comparator。
+        - train_featurizer: 若为 True，则同时更新 featurizer 的参数（较慢）；默认仅训练 comparator。
 
         返回：最后一个 epoch 的平均训练损失。
         """
+        total_samples = len(plan_groups)
+        indices = list(range(total_samples))
+        random.shuffle(indices) # 随机打乱索引
+        
+        split_idx = int(total_samples * 0.9)
+        train_indices = indices[:split_idx]
+        val_indices = indices[split_idx:]
+        
+        # 构建训练集和验证集列表
+        train_plans = [plan_groups[i] for i in train_indices]
+        train_latencies = [latency_groups[i] for i in train_indices]
+        
+        val_plans = [plan_groups[i] for i in val_indices]
+        val_latencies = [latency_groups[i] for i in val_indices]
+        
+        print(f"Dataset Split: Train={len(train_plans)}, Val={len(val_plans)}")
+
         self.to(self.device)
         self.plan_featurizer.to(self.device)
 
         # 数据集和 DataLoader
-        dataset = PlanDatasetListwise(plan_groups, latency_groups)
-        dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, collate_fn=collate_listwise_fn)
+        # 训练集 Loader
+        train_dataset = PlanDatasetListwise(train_plans, train_latencies)
+        train_loader: Iterable[BatchData] = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=collate_listwise_fn)
 
-        # 优化器：默认只优化 comparator 的参数，除非 fine_tune_featurizer=True
+        # 验证集 Loader (不需要 shuffle)
+        val_dataset = PlanDatasetListwise(val_plans, val_latencies)
+        val_loader: Iterable[BatchData] = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, collate_fn=collate_listwise_fn)
+
+        # 优化器：默认只优化 comparator 的参数，除非 train_featurizer=True
         params = list(self.parameters())
-        if fine_tune_featurizer:
+        if train_featurizer:
             params += list(self.plan_featurizer.parameters())
-            self.plan_featurizer.train()
-        else:
-            self.plan_featurizer.eval()
 
-        optimizer = optim.Adam(params, lr=lr)
+        self.optimizer = optim.Adam(params, lr=lr)
+        self.train_loss_history = []# 训练集历史记录
+        self.val_loss_history = [] # 验证集历史记录
 
         eps = 1e-12
-        last_epoch_loss = 0.0
+        # 计算LAL-loss和准确率
+        def compute_loss_and_acc(embeddings:torch.Tensor, batch_latencies:torch.Tensor) -> tuple[torch.Tensor, float]:
+            # batch_latencies: (B, K)
+            
+            # 1. 找到每组的最优延迟
+            min_l = batch_latencies.min(dim=1, keepdim=True).values # (B, 1)
+            
+            # 2. 定义“有效最优集合” (Effectively Best Set)
+            # 只要延迟不超过 min * (1 + tolerance)，就认为是同等优秀的计划
+            # 例如：min=200ms, tolerance=0.05 -> 210ms 以内的都算最优
+            threshold = min_l * (1 + tolerance_ratio)
+            is_effectively_best = (batch_latencies <= threshold) # Mask (B, K)
+
+            # 修正 Target 分布 (防止模型强行区分和TOP-1时延非常接近的计划)
+            target_latencies = batch_latencies.clone()
+            
+            # 将所有“有效最优”计划的延迟强制设为 min_l这样 Softmax 之后，它们的概率就是完全一样的
+            # Expand min_l to match shape (B, K)
+            min_l_expanded = min_l.expand_as(batch_latencies)
+            target_latencies[is_effectively_best] = min_l_expanded[is_effectively_best]
+            
+            # 接着做常规的归一化和 Softmax
+            max_l = batch_latencies.max(dim=1, keepdim=True).values
+            denominator = max_l - min_l
+            denominator[denominator < 1e-6] = 1.0
+            
+            # 注意：这里用修正过的 target_latencies 来做归一化
+            norm_latencies = (target_latencies - min_l) / denominator
+            temperature = 0.1
+            target = torch.softmax(-norm_latencies / temperature, dim=-1)
+
+            beta = 1.0 + is_effectively_best.float() * omega_topk
+
+            probs, scores = self(embeddings)
+            
+            relative_gap = (max_l - min_l) / (min_l + 1e-6)
+            alpha = 1.0 + lambda_latency * torch.log1p(relative_gap)
+
+            element_loss = - (target * torch.log(probs + eps))
+            weighted_item_loss = beta * element_loss
+            group_loss = weighted_item_loss.sum(dim=1, keepdim=True) * alpha
+            loss_tensor = group_loss.mean()
+            
+            pred_idx = scores.argmax(dim=1) # (B,)
+            
+            pred_latency = batch_latencies.gather(1, pred_idx.unsqueeze(1)).squeeze(1) # (B,)
+            
+            # 判断：预测的延迟是否在容忍范围内？
+            is_correct = (pred_latency <= threshold.squeeze(1)).float()
+            acc = is_correct.mean()
+            
+            return loss_tensor, acc
+        
+                # -------------------------------------------------------------
+        
+        # [初始化] Early Stopping 状态变量
+        # -------------------------------------------------------------
+        best_val_loss = float('inf')  # 记录史上最低的验证 Loss
+        patience_counter = 0          # 记录连续多少次没变好
+        best_epoch = 0                # 记录最好的是第几个 epoch
+        
+        # -------------------------------------------------------------
+        # 3. 训练主循环
+        # -------------------------------------------------------------
         for epoch in range(1, epochs + 1):
-            self.train()
-            epoch_losses = []
-            for step, (batch_plans, batch_latencies) in enumerate(dataloader, start=1):
-                # batch_plans: list length=batch_size, 每项为 k 个 plan dict
-                # batch_latencies: tensor (batch, k)
+            # === Training Phase ===
+            self.train() # 启用 Dropout, BatchNorm 等
+            if train_featurizer:
+                self.plan_featurizer.train()
+            else:
+                self.plan_featurizer.eval()
+
+            train_epoch_losses = []
+            train_epoch_accs = []
+            
+            for step, batch_data in enumerate(train_loader, start=1):
+                batch_plans_objs, batch_latencies = cast(BatchData, batch_data)
                 batch_latencies = batch_latencies.to(self.device)
 
-                # 构建 embeddings: (batch, k, hidden)
+                # 构建 Embeddings
                 embeddings_list = []
-                # 如果不微调 featurizer，则在 no_grad 下计算 embedding，节省内存
-                ctx = torch.no_grad if not fine_tune_featurizer else torch.enable_grad
+                # 训练时根据 train_featurizer 决定是否计算梯度
+                ctx = torch.no_grad if not train_featurizer else torch.enable_grad
                 with ctx():
-                    for group in batch_plans:
+                    for group in batch_plans_objs:
                         emb_k = []
-                        for plan_json in group:
-                            # Plan 接受 dict，构造 Plan 对象并编码
-                            plan_obj = Plan(plan_json)
-                            emb = self.plan_featurizer(plan_obj)  # 返回 [1, hidden]
+                        for plan_obj in group:
+                            emb = self.plan_featurizer(plan_obj)
                             emb_k.append(emb.squeeze(0).to(self.device))
                         embeddings_list.append(torch.stack(emb_k, dim=0))
+                embeddings = torch.stack(embeddings_list, dim=0)
 
-                embeddings = torch.stack(embeddings_list, dim=0)  # (batch, k, hidden)
+                # 计算 Loss 和 Acc
+                loss_tensor, acc = compute_loss_and_acc(embeddings=embeddings, batch_latencies=batch_latencies)
 
-                # 前向：得到预测概率
-                probs, scores = self(embeddings)
-
-                # 目标分布：延迟越小概率越大，使用 softmax(-latency)
-                target = torch.softmax(-batch_latencies, dim=-1)
-
-                # 损失：交叉熵形式的 listwise 损失
-                loss_tensor = - (target * torch.log(probs + eps)).sum(dim=1).mean()
-
-                optimizer.zero_grad()
+                # 反向传播
+                self.optimizer.zero_grad()
                 loss_tensor.backward()
-                optimizer.step()
+                torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=1.0) # 加上梯度裁剪
+                self.optimizer.step()
 
-                epoch_losses.append(loss_tensor.item())
+                train_epoch_losses.append(loss_tensor.item())
+                train_epoch_accs.append(acc.item())
+
                 if step % print_every == 0:
-                    print(f"Epoch {epoch} step {step}: loss={loss_tensor.item():.6f}")
+                    print(f"[Train] Epoch {epoch} step {step}: loss={loss_tensor.item():.4f}, acc={acc.item():.2%}")
 
-            last_epoch_loss = float(np.mean(epoch_losses)) if epoch_losses else 0.0
-            print(f"Epoch {epoch} completed, avg loss={last_epoch_loss:.6f}")
+            # === Validation Phase ===
+            self.eval() # 切换到评估模式 (关闭 Dropout 等)
+            self.plan_featurizer.eval() # Featurizer 必定是 Eval 模式
+            
+            val_epoch_losses = []
+            val_epoch_accs = []
+            
+            with torch.no_grad(): # 验证阶段严禁计算梯度
+                for batch_data in val_loader:
+                    batch_plans_objs, batch_latencies = cast(BatchData, batch_data)
+                    batch_latencies = batch_latencies.to(self.device)
 
-        return last_epoch_loss
+                    # 构建 Embeddings (无梯度)
+                    embeddings_list = []
+                    for group in batch_plans_objs:
+                        emb_k = []
+                        for plan_obj in group:
+                            emb = self.plan_featurizer(plan_obj)
+                            emb_k.append(emb.squeeze(0).to(self.device))
+                        embeddings_list.append(torch.stack(emb_k, dim=0))
+                    embeddings = torch.stack(embeddings_list, dim=0)
+
+                    # 计算 Loss 和 Acc
+                    loss_tensor, acc = compute_loss_and_acc(embeddings, batch_latencies)
+                    
+                    val_epoch_losses.append(loss_tensor.item())
+                    val_epoch_accs.append(acc.item())
+
+            # === Epoch Summary ===
+            avg_train_loss = float(np.mean(train_epoch_losses))
+            avg_val_loss = float(np.mean(val_epoch_losses)) if val_epoch_losses else 0.0
+            avg_val_acc = float(np.mean(val_epoch_accs)) if val_epoch_accs else 0.0
+            
+            self.train_loss_history.append(avg_train_loss)
+            self.val_loss_history.append(avg_val_loss)
+            
+            print(f"Epoch {epoch} Done | Train Loss: {avg_train_loss:.4f} | Val Loss: {avg_val_loss:.4f} | Val Acc: {avg_val_acc:.2%}")
+            # -------------------------------------------------------------
+            # Early Stopping 核心逻辑
+            # -------------------------------------------------------------
+            # 判断当前验证集 loss 是否比历史最好还小 (考虑 min_delta 阈值)
+            if avg_val_loss < best_val_loss - min_delta:
+                # === 情况 1: 创下新低 (Model Improved) ===
+                best_val_loss = avg_val_loss
+                best_epoch = epoch
+                patience_counter = 0  # 重置计数器
+                
+                # 保存当前最好的模型
+                # 注意：这里调用你之前写好的 save 函数
+                save(self, DEFAULT_MODEL_ID, self.optimizer, extra_info={"epoch": epoch, "val_loss": avg_val_loss})
+            
+            else:
+                # === 情况 2: 没有改善 (No Improvement) ===
+                patience_counter += 1
+                print(f"   >>> No improvement for {patience_counter}/{patience} epochs.")
+                
+                if patience_counter >= patience:
+                    print(f"\n[Early Stopping] Training stopped manually.")
+                    print(f"Best Val Loss was {best_val_loss:.6f} at Epoch {best_epoch}.")
+                    print(f"Restoring best model weights...")
+                    
+                    # 关键一步：停止前，把内存中的模型加载回最好的状态
+                    # 这样函数返回后，外部拿到的 model 就是最好的那个，而不是最后过拟合的那个
+                    load(DEFAULT_MODEL_ID, self, self.optimizer)
+                    break # 跳出 epoch 循环
+
+
+        return self.train_loss_history, self.val_loss_history
     
-def save(comparator: 'ListwiseComparator', path: str = "listwise_comparator.pth", optimizer:Optional[optim.Optimizer] = None):
-    """将 comparator 和其 plan_featurizer 的 state_dict 一并保存到给定路径。
-
-    会把两个 state_dict 包装到一个 dict 中，便于后续 load。
+def save(comparator: 'ListwiseComparator', model_id: str, optimizer: Optional[optim.Optimizer] = None, extra_info: Dict = None):
+    """
+    保存模型、优化器状态以及训练/验证 Loss 记录。
     """
     if comparator is None:
         raise ValueError("comparator must be provided")
 
-    # 确保目录存在
-    dirpath = os.path.dirname(path)
+    dirpath = os.path.dirname(MODEL_PATH)
     if dirpath:
         os.makedirs(dirpath, exist_ok=True)
 
+    # 1. 尝试获取 Optimizer
+    if optimizer is None and hasattr(comparator, 'optimizer'):
+        optimizer = comparator.optimizer
+
+    # 2. 获取 Loss History (适配新的 fit 函数)
+    # 优先获取拆分后的 history，如果不存在则尝试获取旧版的 loss_history
+    train_loss = getattr(comparator, 'train_loss_history', getattr(comparator, 'loss_history', []))
+    val_loss = getattr(comparator, 'val_loss_history', [])
+
     state = {
+        # 保存主模型参数 (包含内部的 plan_featurizer 参数)
         "comparator_state_dict": comparator.state_dict(),
+        
+        # 单独保存 featurizer 参数 (可选，方便仅加载特征提取器用于其他任务)
         "featurizer_state_dict": comparator.plan_featurizer.state_dict() if hasattr(comparator, "plan_featurizer") else None,
+        
+        # 保存 Loss 曲线
+        "train_loss_history": train_loss,
+        "val_loss_history": val_loss,
+        
+        # 元数据
         "meta": {
             "hidden_size": getattr(comparator, "hidden_size", None),
             "k": getattr(comparator, "k", None),
             "mode": getattr(comparator, "mode", None),
+            "extra_info": extra_info 
         }
     }
+
     if optimizer is not None:
-        try:
-            state["optimizer_state_dict"] = optimizer.state_dict()
-        except Exception:
-            # 忽略无法序列化的 optimizer
-            state["optimizer_state_dict"] = None
+        state["optimizer_state_dict"] = optimizer.state_dict()
 
-    torch.save(state, path)
-    print(f"Saved comparator and featurizer to {path}")
+    torch.save(state, f"{MODEL_PATH}/Hpro_{model_id}.pth")
+    print(f"Model saved to {MODEL_PATH}/Hpro_{model_id}.pth (Success)")
 
-def load(path: str, comparator: Optional[ListwiseComparator] = None, optimizer:Optional[optim.Optimizer] = None, map_location:  Optional[torch.device] = None):
+def load(model_id:str, comparator: Optional[ListwiseComparator] = None, optimizer:Optional[optim.Optimizer] = None, map_location:  Optional[torch.device] = None):
     """Load saved state from `path`.
 
     If `comparator` is provided, its `state_dict` and its `plan_featurizer` (if present)
@@ -558,7 +768,7 @@ def load(path: str, comparator: Optional[ListwiseComparator] = None, optimizer:O
     if map_location is None:
         map_location = device
 
-    state = torch.load(path, map_location=map_location)
+    state = torch.load(f"{MODEL_PATH}/Hpro_{model_id}.pth", map_location=map_location)
 
     # 如果不提供 comparator，返回原始 state 以便用户自行处理
     if comparator is None:
@@ -591,11 +801,11 @@ def load(path: str, comparator: Optional[ListwiseComparator] = None, optimizer:O
     except Exception:
         pass
 
-    print(f"Loaded comparator and featurizer from {path}")
+    print(f"Loaded comparator and featurizer from {MODEL_PATH}/Hpro_{model_id}.pth")
     return state
 
 def collate_listwise_fn(batch: List[Tuple[List[Dict], torch.Tensor]]) -> Tuple[List[List[Dict]], torch.Tensor]:
     """Listwise 数据加载_collate函数：批量处理组数据"""
-    plan_groups = [item[0] for item in batch]  # 形状：(batch_size, 20)
-    latency_groups = torch.stack([item[1] for item in batch], dim=0)  # 形状：(batch_size, 20)
+    plan_groups = [item[0] for item in batch]  # 形状：(batch_size, k)
+    latency_groups = torch.stack([item[1] for item in batch], dim=0)  # 形状：(batch_size, k)
     return plan_groups, latency_groups

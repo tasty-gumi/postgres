@@ -73,6 +73,61 @@ def evaluate_feature_discrimination(embeddings, query_names):
         'discrimination_ratio': np.mean(inter_distances) / np.mean(intra_distances)
     }
 
+def process_query_groups(query_groups, group_size=20, pad_latency=600.0):
+    """
+    处理query_groups，按每个查询的计划构建训练组（每组20个）
+    不足20个的用空字典{}和pad_latency填充
+    
+    Args:
+        query_groups: 原始查询组列表，每个元素含'query_name'、'plans'、'latencies'等字段
+        group_size: 每组计划数量（默认为20）
+        pad_latency: 填充计划的时延标签
+    
+    Returns:
+        plan_groups: 处理后的计划组列表，形状为 (总组数, 20)，每个元素是计划JSON（或空字典）
+        latency_groups: 对应的时延组列表，形状为 (总组数, 20)
+    """
+    plan_groups = []
+    latency_groups = []
+    
+    for group in query_groups:
+        query_name = group['query_name']
+        plans = group['plans']  # 该查询的所有计划（JSON列表）
+        latencies = group['latencies']  # 对应计划的实际时延（列表）
+        
+        # 校验plans和latencies长度一致
+        assert len(plans) == len(latencies), \
+            f"查询 {query_name} 的plans与latencies长度不匹配"
+        
+        total_plans = len(plans)
+        # 计算需要拆分的组数（向上取整）
+        num_groups = (total_plans + group_size - 1) // group_size
+        
+        for i in range(num_groups):
+            # 提取当前组的计划和时延（左闭右开区间）
+            start_idx = i * group_size
+            end_idx = start_idx + group_size
+            current_plans = plans[start_idx:end_idx]
+            current_latencies = latencies[start_idx:end_idx]
+            
+            # 计算需要填充的数量
+            pad_count = group_size - len(current_plans)
+            if pad_count > 0:
+                # 填充空字典作为计划，填充pad_latency作为时延
+                current_plans += [{} for _ in range(pad_count)]
+                current_latencies += [pad_latency for _ in range(pad_count)]
+            
+            # 确认每组正好20个
+            assert len(current_plans) == group_size and len(current_latencies) == group_size, \
+                f"查询 {query_name} 的第{i}组计划数量异常"
+            
+            # 添加到结果列表
+            plan_groups.append(current_plans)
+            latency_groups.append(current_latencies)
+    
+    print(f"处理完成：共生成 {len(plan_groups)} 个训练组，每组 {group_size} 个计划")
+    return plan_groups, latency_groups
+
 def load_data_from_db(db_config):
     """从数据库加载数据并按查询名分组"""
     pg = Postgres()
@@ -87,27 +142,15 @@ def load_data_from_db(db_config):
     
     # 查询所有数据
     rows = pg.execute("""
-        SELECT name, embedding, latency_s, id, plan, strategy 
-        FROM public.plan_explored 
-        WHERE embedding IS NOT NULL AND latency_s IS NOT NULL
-        ORDER BY name, latency_s
+        SELECT name, latency_ms, plan
+        FROM public.explored_plans 
+        WHERE latency_ms IS NOT NULL
+        ORDER BY name, latency_ms;
     """,fetch=True)
     
     # 按查询名分组
     query_groups = {}
-    for name, embedding_str, latency, plan_id, plan_json, strategy_json in rows:
-        # 关键改进：解析字符串为float列表
-        try:
-            # 用json.loads解析字符串（兼容"[x1,x2,...]"格式）
-            embedding = json.loads(embedding_str)
-            # 验证是否为数值列表（避免解析后不是数组的情况）
-            if not isinstance(embedding, list) or not all(isinstance(x, (int, float)) for x in embedding):
-                raise ValueError(f"嵌入向量解析后不是有效的数值列表: {embedding_str}")
-        except Exception as e:
-            # 处理解析失败的情况（如格式错误）
-            print(f"解析嵌入向量失败（{name}）:{e}")
-            continue  # 跳过无效数据
-        
+    for name, latency, plan_json in rows:        
         if name not in query_groups:
             query_groups[name] = {
                 'plans': [],
@@ -119,7 +162,6 @@ def load_data_from_db(db_config):
         query_groups[name]['plans'].append(plan_json)
         # query_groups[name]['embeddings'].append(embedding)  # 数值列表
         query_groups[name]['latencies'].append(float(latency))
-        query_groups[name]['strategy_jsons'].append(strategy_json)
     
     # 转换为列表格式
     grouped_data = []

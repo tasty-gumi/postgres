@@ -261,7 +261,7 @@ class Postgres:
         return res
 
     def plan(self, sql, geqo=False):
-        explain_sql = "EXPLAIN (COSTS, FORMAT JSON) " + sql
+        explain_sql = "EXPLAIN (FORMAT JSON) " + sql
         geqo_threshold = self.get_settings('geqo_threshold')
         if geqo:
             self.set_settings('geqo_threshold', 2)
